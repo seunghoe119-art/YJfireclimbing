@@ -22,7 +22,7 @@ jobs:
       - name: Prepare website
         run: |
           mkdir _site
-          cp index.html style.css app.js config.js _site/
+          cp index.html style.css app.js config.js map.html map.js locations.json leaflet.js leaflet.css _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
