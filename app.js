@@ -75,7 +75,7 @@ $('report').addEventListener('submit', async event => {
     const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(recipient)}`, {method:'POST', body:data, headers:{Accept:'application/json'}, signal:controller.signal});
     const result = await response.json();
     if (!response.ok || !(result.success === true || result.success === 'true')) throw new Error('rejected');
-    completed = true; status('FormSubmit이 접수 요청을 받았습니다.\n최초 설정 시에는 수신 이메일 인증이 필요합니다. 이 메시지는 담당자의 이메일 수신 완료를 보장하지 않습니다.', 'success');
+    completed = true; status('사진과 위치 전송 요청이 완료되었습니다.', 'success');
     $('reset').hidden = false;
   } catch (error) {
     status(error.message === 'rejected' ? '접수 서비스가 요청을 처리하지 못했습니다. 수신 주소와 이메일 인증 상태를 관리자에게 확인해 주세요. 사진과 위치는 유지됩니다.' : '통신 문제로 접수 결과를 확인하지 못했습니다. 사진과 위치는 유지됩니다. 수신 여부를 먼저 확인한 뒤 다시 시도해 주세요. 재전송하면 중복 접수될 수 있습니다.', 'error');
