@@ -52,8 +52,8 @@ $('locate').addEventListener('click', () => {
   navigator.geolocation.getCurrentPosition(result => {
     if (request !== locationRequest || !$('gpsConsent').checked) return;
     locating = false;
-    position = { latitude: result.coords.latitude, longitude: result.coords.longitude, accuracy: result.coords.accuracy, timestamp: result.timestamp };
-    $('locationInfo').textContent = `위도 ${position.latitude.toFixed(6)} · 경도 ${position.longitude.toFixed(6)}\n정확도 약 ${Math.round(position.accuracy)}m · ${new Date(position.timestamp).toLocaleString('ko-KR')}`;
+    position = { latitude: Number(result.coords.latitude.toFixed(5)), longitude: Number(result.coords.longitude.toFixed(5)), accuracy: result.coords.accuracy, timestamp: result.timestamp };
+    $('locationInfo').textContent = `위도 ${position.latitude.toFixed(5)} · 경도 ${position.longitude.toFixed(5)}\n정확도 약 ${Math.round(position.accuracy)}m · ${new Date(position.timestamp).toLocaleString('ko-KR')}`;
     $('map').href = `https://www.google.com/maps?q=${position.latitude},${position.longitude}`; $('map').hidden = false; update();
   }, error => {
     if (request !== locationRequest) return;
