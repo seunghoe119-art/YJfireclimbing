@@ -1,5 +1,5 @@
 // 수신 이메일 또는 이메일 인증 후 FormSubmit이 제공하는 토큰을 입력하세요.
-// 이 파일은 공개됩니다. 비밀번호나 API 키를 넣지 마세요.
+// 이 파일은 공개됩니다. Publishable key만 입력하고 비밀번호나 secret/service_role 키는 넣지 마세요.
 window.APP_CONFIG = Object.freeze({
   recipient: "sj240324@outlook.kr",
   recipientLabel: "현장 접수 담당자",
