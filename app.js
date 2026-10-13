@@ -60,6 +60,8 @@ $('report').addEventListener('submit', async event => {
   if (navigator.onLine === false) { status('인터넷 연결이 없습니다. 연결 후 다시 전송해 주세요.', 'error'); return; }
   const data = new FormData();
   data.append('attachment', photo, photo.name);
+  data.append('_captcha', 'false');
+  data.append('_honey', '');
   data.append('_subject', config.subject || '[YJfireclimbing] 현장 접수'); data.append('_template', 'table');
   data.append('접수번호', crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   data.append('사진 선택 시각', selectedAt.toISOString());
@@ -88,7 +90,7 @@ $('report').addEventListener('submit', async event => {
     const returnURL = new URL(window.location.href); returnURL.search = '?sent=1'; returnURL.hash = '';
     next.value = returnURL.href; submission.append(next);
     document.body.append(submission);
-    busy = true; status('사진과 위치를 전송합니다. FormSubmit 확인 화면에서 안내를 따라 주세요.'); update();
+    busy = true; status('사진과 위치를 전송하고 있습니다. 잠시 기다려 주세요.'); update();
     HTMLFormElement.prototype.submit.call(submission);
   } catch {
     busy = false; submission.remove();
