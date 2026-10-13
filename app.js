@@ -81,11 +81,5 @@ $('report').addEventListener('submit', async event => {
     status(error.message === 'rejected' ? '접수 서비스가 요청을 처리하지 못했습니다. 수신 주소와 이메일 인증 상태를 관리자에게 확인해 주세요. 사진과 위치는 유지됩니다.' : '통신 문제로 접수 결과를 확인하지 못했습니다. 사진과 위치는 유지됩니다. 수신 여부를 먼저 확인한 뒤 다시 시도해 주세요. 재전송하면 중복 접수될 수 있습니다.', 'error');
   } finally { clearTimeout(timer); busy = false; update(); }
 });
-$('reset').addEventListener('click', () => {
-  ++locationRequest; locating = false; completed = false; photo = null; position = null; selectedAt = null;
-  if (photoURL) URL.revokeObjectURL(photoURL); photoURL = null;
-  $('report').reset(); $('preview').removeAttribute('src'); $('preview').hidden = true; $('placeholder').hidden = false;
-  $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = '아직 위치를 가져오지 않았습니다.';
-  $('photoInfo').textContent = '사진은 전송하기 전까지 이 화면에만 보관됩니다.'; $('reset').hidden = true; status(''); update(); window.scrollTo({top:0,behavior:'smooth'});
-});
+$('reset').addEventListener('click', () => { window.location.reload(); });
 update();
