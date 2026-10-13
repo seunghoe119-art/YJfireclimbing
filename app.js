@@ -69,18 +69,39 @@ $('report').addEventListener('submit', async event => {
   data.append('위치 확인 시각', new Date(position.timestamp).toISOString());
   data.append('Google 지도', $('map').href); data.append('현장 메모', $('note').value.trim());
   data.append('위치 및 전송 동의', '사용자가 명시적으로 동의함');
-  busy = true; status('사진과 위치를 전송하고 있습니다. 이 화면을 닫지 마세요.'); update();
-  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 60000);
+  // File attachments use FormSubmit's documented native multipart endpoint.
+  const submission = document.createElement('form');
+  submission.method = 'POST'; submission.enctype = 'multipart/form-data';
+  submission.action = `https://formsubmit.co/${encodeURIComponent(recipient)}`;
+  submission.hidden = true;
   try {
-    const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(recipient)}`, {method:'POST', body:data, headers:{Accept:'application/json'}, signal:controller.signal});
-    const result = await response.json();
-    if (!response.ok || !(result.success === true || result.success === 'true')) throw new Error('rejected');
-    completed = true; status('사진과 위치 전송 요청이 완료되었습니다.', 'success');
-    $('reset').hidden = false;
-  } catch (error) {
-    status(error.message === 'rejected' ? '접수 서비스가 요청을 처리하지 못했습니다. 수신 주소와 이메일 인증 상태를 관리자에게 확인해 주세요. 사진과 위치는 유지됩니다.' : '통신 문제로 접수 결과를 확인하지 못했습니다. 사진과 위치는 유지됩니다. 수신 여부를 먼저 확인한 뒤 다시 시도해 주세요. 재전송하면 중복 접수될 수 있습니다.', 'error');
-  } finally { clearTimeout(timer); busy = false; update(); }
+    for (const [name, value] of data.entries()) {
+      const input = document.createElement('input'); input.name = name;
+      if (value instanceof File) {
+        input.type = 'file';
+        const transfer = new DataTransfer(); transfer.items.add(value); input.files = transfer.files;
+        if (input.files.length !== 1) throw new Error('attachment');
+      } else { input.type = 'hidden'; input.value = value; }
+      submission.append(input);
+    }
+    const next = document.createElement('input'); next.type = 'hidden'; next.name = '_next';
+    const returnURL = new URL(window.location.href); returnURL.search = '?sent=1'; returnURL.hash = '';
+    next.value = returnURL.href; submission.append(next);
+    document.body.append(submission);
+    busy = true; status('사진과 위치를 전송합니다. FormSubmit 확인 화면에서 안내를 따라 주세요.'); update();
+    HTMLFormElement.prototype.submit.call(submission);
+  } catch {
+    busy = false; submission.remove();
+    status('사진 첨부를 준비하지 못했습니다. 최신 Safari 또는 Chrome에서 다시 시도해 주세요. 사진과 위치는 유지됩니다.', 'error'); update();
+  }
 });
+window.addEventListener('pageshow', () => { busy = false; update(); });
+if (new URLSearchParams(window.location.search).get('sent') === '1') {
+  completed = true; status('사진과 위치 전송 요청이 완료되었습니다.', 'success');
+  $('reset').hidden = false; update();
+  window.history.replaceState(null, '', window.location.pathname);
+}
+
 $('reset').addEventListener('click', () => { window.location.reload(); });
 update();
 
