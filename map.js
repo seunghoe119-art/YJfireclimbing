@@ -128,7 +128,7 @@
       const coords=document.createElement('p');coords.textContent=`${point.latitude}, ${point.longitude}`;content.append(coords);
       const link=document.createElement('a');link.textContent='Google 지도에서 보기 ↗';link.href=`https://www.google.com/maps?q=${point.latitude},${point.longitude}`;link.target='_blank';link.rel='noopener noreferrer';content.append(link);
       if(point.photo){const url=new URL(String(point.photo),window.location.href);if(url.origin===window.location.origin){const img=document.createElement('img');img.src=url.href;img.alt=heading.textContent+' 설치 사진';img.loading='lazy';content.append(document.createElement('br'),img);}}
-      const marker=L.circleMarker(location,{radius:8,color:'#fff',weight:2,fillColor:'#467a2e',fillOpacity:1}).addTo(map).bindPopup(content);
+      const marker=L.circleMarker(location,{radius:8,color:'#fff',weight:2,fillColor:'#1683c4',fillOpacity:1}).addTo(map).bindPopup(content);
       const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=heading.textContent;
       const small=document.createElement('small');small.textContent=[point.type,point.installedAt].filter(Boolean).join(' · ');button.append(small);
       button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);
