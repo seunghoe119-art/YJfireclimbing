@@ -3,9 +3,16 @@ const $ = id => document.getElementById(id);
 const config = window.APP_CONFIG || {};
 const recipient = (config.recipient || '').trim();
 const configured = /^[^\s/@]+@[^\s/@]+\.[^\s/@]+$/.test(recipient) || /^[a-f0-9]{20,64}$/i.test(recipient);
+const supabaseReady = /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(config.supabaseUrl || '') && Boolean(config.supabaseAnonKey);
+let supabaseClientPromise;
+function getSupabase() {
+  if (!supabaseReady) throw new Error('Supabase project URL과 publishable key 설정이 필요합니다.');
+  if (!supabaseClientPromise) supabaseClientPromise = import('https://esm.sh/@supabase/supabase-js@2').then(({ createClient }) => createClient(config.supabaseUrl, config.supabaseAnonKey));
+  return supabaseClientPromise;
+}
 let photo = null, photoURL = null, position = null, busy = false, completed = false, locating = false, locationRequest = 0, selectedAt = null;
 $('setup').hidden = configured;
-$('recipient').textContent = configured ? `수신: ${config.recipientLabel || '현장 접수 담당자'} · 전송 서비스: FormSubmit.co` : '수신 이메일 설정 전에는 전송할 수 없습니다.';
+$('recipient').textContent = !configured ? '수신 이메일 설정 전에는 전송할 수 없습니다.' : '수신: ' + (config.recipientLabel || '현장 접수 담당자') + ' · 이메일: FormSubmit.co · 최근 위치: 7일간 지도 표시';
 function status(message, type = '') { $('status').textContent = message; $('status').className = type; }
 function update() {
   $('send').disabled = !configured || !photo || !position || !$('gpsConsent').checked || !$('sendConsent').checked || busy || completed || locating;
@@ -58,12 +65,30 @@ $('locate').addEventListener('click', () => {
 $('report').addEventListener('submit', async event => {
   event.preventDefault(); update(); if ($('send').disabled) return;
   if (navigator.onLine === false) { status('인터넷 연결이 없습니다. 연결 후 다시 전송해 주세요.', 'error'); return; }
+  busy = true; update();
+  let reportId = crypto.randomUUID();
+  let mapSaved = false;
+  if (supabaseReady) {
+    try {
+      status('위치를 임시 지도에 등록하고 있습니다…');
+      const client = await getSupabase();
+      const result = await client.from('temporary_reports').insert({
+        id: reportId, latitude: position.latitude, longitude: position.longitude,
+        accuracy_m: Math.round(position.accuracy)
+      });
+      if (result.error) throw result.error;
+      mapSaved = true;
+    } catch (error) {
+      console.error('Temporary map location could not be saved', error);
+    }
+  }
   const data = new FormData();
   data.append('attachment', photo, photo.name);
   data.append('_captcha', 'false');
   data.append('_honey', '');
   data.append('_subject', config.subject || '[YJfireclimbing] 현장 접수'); data.append('_template', 'table');
-  data.append('접수번호', crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+  data.append('접수번호', reportId);
+  data.append('임시 지도 표시', mapSaved ? '지도에 표시됨 · 7일 후 자동 삭제' : '지도 자동 등록을 사용할 수 없음 · GPS 좌표는 아래에 포함');
   data.append('사진 선택 시각', selectedAt.toISOString());
   data.append('전송 요청 시각', new Date().toISOString());
   data.append('위도', String(position.latitude)); data.append('경도', String(position.longitude));
@@ -90,7 +115,7 @@ $('report').addEventListener('submit', async event => {
     const returnURL = new URL(window.location.href); returnURL.search = '?sent=1'; returnURL.hash = '';
     next.value = returnURL.href; submission.append(next);
     document.body.append(submission);
-    busy = true; status('사진과 위치를 전송하고 있습니다. 잠시 기다려 주세요.'); update();
+    status(mapSaved ? '사진과 위치를 이메일로 전송하고, 위치를 7일간 지도에 표시합니다…' : '사진과 위치를 이메일로 전송합니다…'); update();
     HTMLFormElement.prototype.submit.call(submission);
   } catch {
     busy = false; submission.remove();
