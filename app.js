@@ -83,3 +83,8 @@ $('report').addEventListener('submit', async event => {
 });
 $('reset').addEventListener('click', () => { window.location.reload(); });
 update();
+
+$('placeholder').addEventListener('click', () => { if (!busy && !completed) $('photoChoice').showModal(); });
+$('chooseCamera').addEventListener('click', () => { $('photoChoice').close(); $('camera').click(); });
+$('chooseAlbum').addEventListener('click', () => { $('photoChoice').close(); $('album').click(); });
+$('closePhotoChoice').addEventListener('click', () => $('photoChoice').close());
