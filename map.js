@@ -10,6 +10,39 @@
   const title = document.createElement('strong');title.textContent='영종소방서 인근';popup.append(title);
   const address = document.createElement('p');address.textContent='제2터미널대로 268 · 인근 정류장 기준 좌표입니다. 정확한 건물 위치는 위치 검색에서 확인하세요.';popup.append(address);
   L.circleMarker(station,{radius:10,color:'#fff',weight:3,fillColor:'#284f75',fillOpacity:1}).addTo(map).bindPopup(popup);
+  // Leaflet circles use geographic meters, independent of zoom level.
+  const radii = [100,200,300,500];
+  let radiusIndex = -1, measurementCenter = null, measurementCircle = null, measurementMarker = null;
+  const rulerButton = document.getElementById('rulerButton');
+  const measureHelp = document.getElementById('measureHelp');
+  function renderMeasurement() {
+    const radius = radii[radiusIndex];
+    if (!measurementCenter) {
+      measureHelp.textContent = `반경 ${radius}m · 지도에서 중심점을 선택하세요. 직선거리 기준입니다.`;
+      return;
+    }
+    if (!measurementCircle) {
+      measurementCircle = L.circle(measurementCenter,{radius,color:'#247cc2',weight:2,fillColor:'#3698ea',fillOpacity:0.22,interactive:false}).addTo(map);
+      measurementMarker = L.circleMarker(measurementCenter,{radius:5,color:'#fff',weight:2,fillColor:'#176bb0',fillOpacity:1,interactive:false}).addTo(map);
+    } else {
+      measurementCircle.setLatLng(measurementCenter).setRadius(radius);
+      measurementMarker.setLatLng(measurementCenter);
+    }
+    measureHelp.textContent = `선택한 중심에서 반경 ${radius}m (지름 ${radius*2}m) · 지도에서 다른 곳을 누르면 중심이 이동합니다. 등산로를 따라 이동한 거리와는 다릅니다.`;
+  }
+  rulerButton.addEventListener('click',()=>{
+    radiusIndex = (radiusIndex+1)%radii.length;
+    rulerButton.textContent = `📏 ${radii[radiusIndex]}m`;
+    rulerButton.setAttribute('aria-pressed','true');
+    document.getElementById('installationMap').style.cursor='crosshair';
+    renderMeasurement();
+  });
+  map.on('click',event=>{
+    if(radiusIndex<0)return;
+    measurementCenter=event.latlng;
+    renderMeasurement();
+  });
+  L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
   const points = [station];
   document.getElementById('stationView').onclick=()=>map.setView(station,16);
   document.getElementById('allView').onclick=()=>points.length>1?map.fitBounds(points,{padding:[32,32],maxZoom:16}):map.setView(station,13);
