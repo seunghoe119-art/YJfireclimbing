@@ -17,7 +17,7 @@ function status(message, type = '') { $('status').textContent = message; $('stat
 function update() {
   $('send').disabled = !configured || !photo || !position || !$('gpsConsent').checked || !$('sendConsent').checked || busy || completed || locating;
   $('locate').disabled = !$('gpsConsent').checked || busy || completed || locating;
-  for (const id of ['camera','album','gpsConsent','sendConsent','note']) $(id).disabled = busy || completed;
+  for (const id of ['camera','album','gpsConsent','sendConsent','note','volunteerTeam']) $(id).disabled = busy || completed;
   $('send').textContent = busy ? '전송 중… 잠시 기다려 주세요' : completed ? '접수 요청 완료' : '사진과 위치 전송하기 ↗';
 }
 async function choose(event) {
@@ -95,6 +95,7 @@ $('report').addEventListener('submit', async event => {
   data.append('GPS 정확도(m)', String(position.accuracy));
   data.append('위치 확인 시각', new Date(position.timestamp).toISOString());
   data.append('Google 지도', $('map').href); data.append('현장 메모', $('note').value.trim());
+  data.append('점검/등록 의용소방대', $('volunteerTeam').value || '선택 안 함');
   data.append('위치 및 전송 동의', '사용자가 명시적으로 동의함');
   // File attachments use FormSubmit's documented native multipart endpoint.
   const submission = document.createElement('form');
