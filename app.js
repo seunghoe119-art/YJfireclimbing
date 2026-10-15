@@ -5,6 +5,23 @@ const recipient = (config.recipient || '').trim();
 const configured = /^[^\s/@]+@[^\s/@]+\.[^\s/@]+$/.test(recipient) || /^[a-f0-9]{20,64}$/i.test(recipient);
 const supabaseReady = /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(config.supabaseUrl || '') && Boolean(config.supabaseAnonKey);
 let supabaseClientPromise;
+const CANCEL_STORAGE_KEY = 'yjfireclimbing.cancelTokens.v1';
+function createCancelToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+async function hashCancelToken(token) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+function rememberCancelToken(id, token) {
+  try {
+    const entries = JSON.parse(localStorage.getItem(CANCEL_STORAGE_KEY) || '[]')
+      .filter(item => item.expiresAt > Date.now() && item.id !== id);
+    entries.push({ id, token, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+    localStorage.setItem(CANCEL_STORAGE_KEY, JSON.stringify(entries.slice(-100)));
+  } catch (error) { console.warn('Could not store temporary report cancellation token', error); }
+}
 function getSupabase() {
   if (!supabaseReady) throw new Error('Supabase project URL과 publishable key 설정이 필요합니다.');
   if (!supabaseClientPromise) supabaseClientPromise = import('https://esm.sh/@supabase/supabase-js@2').then(({ createClient }) => createClient(config.supabaseUrl, config.supabaseAnonKey));
@@ -68,14 +85,27 @@ $('report').addEventListener('submit', async event => {
   busy = true; update();
   let reportId = crypto.randomUUID();
   let mapSaved = false;
+  let cancelTokenSaved = false;
   if (supabaseReady) {
     try {
       status('위치를 임시 지도에 등록하고 있습니다…');
       const client = await getSupabase();
-      const result = await client.from('temporary_reports').insert({
+      const cancelToken = createCancelToken();
+      const cancelTokenHash = await hashCancelToken(cancelToken);
+      let result = await client.from('temporary_reports').insert({
         id: reportId, latitude: position.latitude, longitude: position.longitude,
-        accuracy_m: Math.round(position.accuracy)
+        accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash
       });
+      if (result.error) {
+        // Keep ordinary 7-day map submissions working until the one-time cancellation SQL is installed.
+        result = await client.from('temporary_reports').insert({
+          id: reportId, latitude: position.latitude, longitude: position.longitude,
+          accuracy_m: Math.round(position.accuracy)
+        });
+      } else {
+        rememberCancelToken(reportId, cancelToken);
+        cancelTokenSaved = true;
+      }
       if (result.error) throw result.error;
       mapSaved = true;
     } catch (error) {
@@ -88,7 +118,7 @@ $('report').addEventListener('submit', async event => {
   data.append('_honey', '');
   data.append('_subject', config.subject || '[YJfireclimbing] 현장 접수'); data.append('_template', 'table');
   data.append('접수번호', reportId);
-  data.append('임시 지도 표시', mapSaved ? '지도에 표시됨 · 7일 후 자동 삭제' : '지도 자동 등록을 사용할 수 없음 · GPS 좌표는 아래에 포함');
+  data.append('임시 지도 표시', mapSaved ? (cancelTokenSaved ? '지도에 표시됨 · 7일 후 자동 삭제 · 이 기기의 지도에서 요청 취소 가능' : '지도에 표시됨 · 7일 후 자동 삭제') : '지도 자동 등록을 사용할 수 없음 · GPS 좌표는 아래에 포함');
   data.append('사진 선택 시각', selectedAt.toISOString());
   data.append('전송 요청 시각', new Date().toISOString());
   data.append('위도', String(position.latitude)); data.append('경도', String(position.longitude));
