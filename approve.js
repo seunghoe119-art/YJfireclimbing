@@ -9,8 +9,8 @@
   try{
     const {createClient}=await import('https://esm.sh/@supabase/supabase-js@2');
     const client=createClient(config.supabaseUrl,config.supabaseAnonKey);
-    const {data,error}=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at').eq('id',id).maybeSingle();
-    if(error||!data||new Date(data.expires_at)<new Date()){status.textContent='접수 위치가 이미 만료되었거나 승인 링크를 확인할 수 없습니다.';return;}
+    const {data,error}=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').eq('id',id).maybeSingle();
+    if(error||!data){status.textContent='접수 위치가 이미 만료되었거나 승인 링크를 확인할 수 없습니다.';return;}\n    if(data.approved_at){status.textContent='이 지점은 이미 영구 등록되었습니다.';return;}\n    if(Number.isFinite(new Date(data.expires_at).getTime())&&new Date(data.expires_at)<new Date()){status.textContent='접수 위치가 이미 만료되었거나 승인 링크를 확인할 수 없습니다.';return;}
     $('approvalCoordinates').textContent=data.latitude.toFixed(5)+', '+data.longitude.toFixed(5)+' · GPS 오차 약 '+data.accuracy_m+'m';
     $('approvalMapLink').href='https://www.google.com/maps?q='+data.latitude+','+data.longitude;
     $('approvalSubmitted').textContent=new Date(data.submitted_at).toLocaleString('ko-KR');
