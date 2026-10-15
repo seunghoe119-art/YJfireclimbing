@@ -156,6 +156,23 @@
           const popup=document.createElement('div');const title=document.createElement('strong');title.textContent='최근 접수 위치 · 7일 임시 표시';popup.append(title);
           const date=document.createElement('p');date.textContent='접수 '+new Date(point.submitted_at).toLocaleString('ko-KR')+' · GPS 오차 약 '+point.accuracy_m+'m';popup.append(date);
           const link=document.createElement('a');link.href='https://www.google.com/maps?q='+point.latitude+','+point.longitude;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Google 지도에서 보기 ↗';popup.append(link);
+          let cancelEntries=[];
+          try { cancelEntries=JSON.parse(localStorage.getItem('yjfireclimbing.cancelTokens.v1')||'[]'); } catch {}
+          const cancelEntry=cancelEntries.find(entry=>entry.id===point.id && entry.expiresAt>Date.now());
+          if(cancelEntry){
+            const cancelButton=document.createElement('button');cancelButton.type='button';cancelButton.className='point-cancel';cancelButton.textContent='이 요청 취소 · 지도에서 삭제';
+            cancelButton.style.cssText='display:block;margin-top:10px;padding:8px 12px;border:1px solid #b83232;border-radius:8px;background:#fff5f5;color:#a22222;font:inherit;font-weight:700;cursor:pointer';
+            cancelButton.addEventListener('click',async()=>{
+              if(!window.confirm('이 기기에서 보낸 임시 위치 요청을 취소하고 지도에서 삭제할까요?'))return;
+              cancelButton.disabled=true;cancelButton.textContent='요청을 취소하고 있습니다…';
+              const cancelled=await client.rpc('cancel_temporary_report',{p_id:point.id,p_token:cancelEntry.token});
+              if(cancelled.error||cancelled.data!==true){cancelButton.disabled=false;cancelButton.textContent='취소 기능 설정을 확인해 주세요';console.error('temporary report cancellation failed',cancelled.error);return;}
+              try { localStorage.setItem('yjfireclimbing.cancelTokens.v1',JSON.stringify(cancelEntries.filter(entry=>entry.id!==point.id))); } catch {}
+              await loadTemporary();
+              status.textContent='임시 위치 요청을 취소했습니다.';
+            });
+            popup.append(cancelButton);
+          }
           const marker=L.circleMarker(location,{radius:9,color:'#fff',weight:3,fillColor:'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);tempLayers.push(marker);
           const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent='최근 접수 위치 · 7일 임시';const small=document.createElement('small');small.textContent=new Date(point.submitted_at).toLocaleString('ko-KR')+' · '+point.latitude.toFixed(5)+', '+point.longitude.toFixed(5);button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);
         }
@@ -165,7 +182,7 @@
         status.textContent='최근 접수 '+(result.data||[]).length+'곳 · 영구 등록 '+staticCount+'곳';
       };
       await loadTemporary();
-      client.channel('temporary-map-locations').on('postgres_changes',{event:'INSERT',schema:'public',table:'temporary_reports'},()=>loadTemporary()).subscribe();
+      client.channel('temporary-map-locations').on('postgres_changes',{event:'*',schema:'public',table:'temporary_reports'},()=>loadTemporary()).subscribe();
       window.setInterval(()=>loadTemporary().catch(error=>{status.textContent='최근 접수 위치를 새로고침하지 못했습니다.';console.error(error);}),60000);
     }catch(error){status.textContent='Supabase 임시 위치를 불러오지 못했습니다. GPS 접수는 계속 이메일로 받을 수 있습니다.';console.error('temporary location map failed',error);}
   } else {status.textContent='Supabase 연결 후 최근 접수 위치가 7일간 표시됩니다.';}
