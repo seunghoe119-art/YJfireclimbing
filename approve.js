@@ -4,7 +4,7 @@
   const status = $('approvalStatus'), button = $('approveButton'), consent = $('approvalConsent');
   const id = new URLSearchParams(location.search).get('id');
   const config = window.APP_CONFIG || {};
-  const adminEmail = 'sj240324@outlook.kr';
+  const adminEmail = 'seunghoe119@gmail.com';
   let busy = false;
   const say = text => { status.textContent = text; };
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '')) {
