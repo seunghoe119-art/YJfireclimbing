@@ -86,15 +86,19 @@ $('report').addEventListener('submit', async event => {
   let reportId = crypto.randomUUID();
   let mapSaved = false;
   let cancelTokenSaved = false;
+  let approvalURL = '';
   if (supabaseReady) {
     try {
       status('위치를 임시 지도에 등록하고 있습니다…');
       const client = await getSupabase();
       const cancelToken = createCancelToken();
       const cancelTokenHash = await hashCancelToken(cancelToken);
+      const approvalToken = createCancelToken();
+      const approvalTokenHash = await hashCancelToken(approvalToken);
       let result = await client.from('temporary_reports').insert({
         id: reportId, latitude: position.latitude, longitude: position.longitude,
-        accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash
+        accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash,
+        approval_token_hash: approvalTokenHash
       });
       if (result.error) {
         // Keep ordinary 7-day map submissions working until the one-time cancellation SQL is installed.
@@ -105,6 +109,10 @@ $('report').addEventListener('submit', async event => {
       } else {
         rememberCancelToken(reportId, cancelToken);
         cancelTokenSaved = true;
+        const approveURL = new URL('approve.html', window.location.href);
+        approveURL.searchParams.set('id', reportId);
+        approveURL.searchParams.set('token', approvalToken);
+        approvalURL = approveURL.href;
       }
       if (result.error) throw result.error;
       mapSaved = true;
@@ -118,6 +126,7 @@ $('report').addEventListener('submit', async event => {
   data.append('_honey', '');
   data.append('_subject', config.subject || '[YJfireclimbing] 현장 접수'); data.append('_template', 'table');
   data.append('접수번호', reportId);
+  data.append('영구 등록 승인', approvalURL ? '지점을 계속 관리하려면 이 승인 링크를 여세요: ' + approvalURL : mapSaved ? '승인 링크 미생성 · Supabase 승인 기능 설정을 확인해 주세요.' : 'Supabase 임시 지도 등록을 사용할 수 없어 승인 링크가 없습니다.');
   data.append('임시 지도 표시', mapSaved ? (cancelTokenSaved ? '지도에 표시됨 · 7일 후 자동 삭제 · 이 기기의 지도에서 요청 취소 가능' : '지도에 표시됨 · 7일 후 자동 삭제') : '지도 자동 등록을 사용할 수 없음 · GPS 좌표는 아래에 포함');
   data.append('사진 선택 시각', selectedAt.toISOString());
   data.append('전송 요청 시각', new Date().toISOString());
