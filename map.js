@@ -146,7 +146,10 @@
       const client=createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
       let tempLayers=[],tempItems=[],firstLoad=true;
       const loadTemporary=async()=>{
-        const result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
+        let result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
+        if(result.error && (result.error.code==='42703'||result.error.code==='PGRST204')){
+          result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
+        }
         if(result.error)throw result.error;
         for(const item of tempLayers)map.removeLayer(item);
         for(const item of tempItems)item.remove();
@@ -159,13 +162,15 @@
           let cancelEntries=[];
           try { cancelEntries=JSON.parse(localStorage.getItem('yjfireclimbing.cancelTokens.v1')||'[]'); } catch {}
           const cancelEntry=cancelEntries.find(entry=>entry.id===point.id && entry.expiresAt>Date.now());
-          if(cancelEntry){
+          if(cancelEntry && !point.approved_at){
             const cancelButton=document.createElement('button');cancelButton.type='button';cancelButton.className='point-cancel';cancelButton.textContent='이 요청 취소 · 지도에서 삭제';
             cancelButton.style.cssText='display:block;margin-top:10px;padding:8px 12px;border:1px solid #b83232;border-radius:8px;background:#fff5f5;color:#a22222;font:inherit;font-weight:700;cursor:pointer';
             cancelButton.addEventListener('click',async()=>{
               if(!window.confirm('이 기기에서 보낸 임시 위치 요청을 취소하고 지도에서 삭제할까요?'))return;
               cancelButton.disabled=true;cancelButton.textContent='요청을 취소하고 있습니다…';
-              const cancelled=await client.rpc('cancel_temporary_report',{p_id:point.id,p_token:cancelEntry.token});
+              let cancelled;
+              try { cancelled=await client.rpc('cancel_temporary_report',{p_id:point.id,p_token:cancelEntry.token}); }
+              catch(error) { cancelled={error}; }
               if(cancelled.error||cancelled.data!==true){cancelButton.disabled=false;cancelButton.textContent='취소 기능 설정을 확인해 주세요';console.error('temporary report cancellation failed',cancelled.error);return;}
               try { localStorage.setItem('yjfireclimbing.cancelTokens.v1',JSON.stringify(cancelEntries.filter(entry=>entry.id!==point.id))); } catch {}
               await loadTemporary();
