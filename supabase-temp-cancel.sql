@@ -38,7 +38,7 @@ returns boolean language plpgsql security definer
 set search_path = ''
 as $$
 begin
-  if auth.uid() is null or pg_catalog.lower(coalesce(auth.jwt()->>'email','')) <> 'sj240324@outlook.kr' then
+  if auth.uid() is null or pg_catalog.lower(coalesce(auth.jwt()->>'email','')) <> 'seunghoe119@gmail.com' then
     raise exception 'Only the receiving administrator may approve a location' using errcode='42501';
   end if;
   update public.temporary_reports
