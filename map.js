@@ -146,15 +146,15 @@
       const client=createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
       let tempLayers=[],tempItems=[],firstLoad=true;
       const loadTemporary=async()=>{
-        const result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
+        const result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
         if(result.error)throw result.error;
         for(const item of tempLayers)map.removeLayer(item);
         for(const item of tempItems)item.remove();
         tempLayers=[];tempItems=[];
         for(const point of result.data||[]){
           const location=[point.latitude,point.longitude];
-          const popup=document.createElement('div');const title=document.createElement('strong');title.textContent='최근 접수 위치 · 7일 임시 표시';popup.append(title);
-          const date=document.createElement('p');date.textContent='접수 '+new Date(point.submitted_at).toLocaleString('ko-KR')+' · GPS 오차 약 '+point.accuracy_m+'m';popup.append(date);
+          const popup=document.createElement('div');const title=document.createElement('strong');title.textContent=point.approved_at?'담당자 승인 · 영구 등록 지점':'최근 접수 위치 · 7일 임시 표시';popup.append(title);
+          const date=document.createElement('p');date.textContent=(point.approved_at?'승인 '+new Date(point.approved_at).toLocaleString('ko-KR'):'접수 '+new Date(point.submitted_at).toLocaleString('ko-KR')+' · 7일 후 만료')+' · GPS 오차 약 '+point.accuracy_m+'m';popup.append(date);
           const link=document.createElement('a');link.href='https://www.google.com/maps?q='+point.latitude+','+point.longitude;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Google 지도에서 보기 ↗';popup.append(link);
           let cancelEntries=[];
           try { cancelEntries=JSON.parse(localStorage.getItem('yjfireclimbing.cancelTokens.v1')||'[]'); } catch {}
@@ -173,13 +173,15 @@
             });
             popup.append(cancelButton);
           }
-          const marker=L.circleMarker(location,{radius:9,color:'#fff',weight:3,fillColor:'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);tempLayers.push(marker);
-          const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent='최근 접수 위치 · 7일 임시';const small=document.createElement('small');small.textContent=new Date(point.submitted_at).toLocaleString('ko-KR')+' · '+point.latitude.toFixed(5)+', '+point.longitude.toFixed(5);button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);
+          const marker=L.circleMarker(location,{radius:point.approved_at?10:9,color:'#fff',weight:3,fillColor:point.approved_at?'#d92536':'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);tempLayers.push(marker);
+          const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=point.approved_at?'영구 등록 지점 · 담당자 승인':'최근 접수 위치 · 7일 임시';const small=document.createElement('small');small.textContent=(point.approved_at?new Date(point.approved_at).toLocaleString('ko-KR')+' 승인 · ':new Date(point.submitted_at).toLocaleString('ko-KR')+' · ')+point.latitude.toFixed(5)+', '+point.longitude.toFixed(5);button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);
         }
         const livePoints=(result.data||[]).map(point=>[point.latitude,point.longitude]);points.splice(0,points.length,...permanentPoints,...livePoints);
-        const total=staticCount+livePoints.length;document.getElementById('pointCount').textContent=String(total);document.getElementById('emptyPoints').hidden=total>0;
+        const permanentCount=staticCount+(result.data||[]).filter(point=>point.approved_at).length;
+        const temporaryCount=(result.data||[]).filter(point=>!point.approved_at).length;
+        const total=staticCount+(result.data||[]).length;document.getElementById('pointCount').textContent=String(total);document.getElementById('emptyPoints').hidden=total>0;
         if(firstLoad&&livePoints.length){map.fitBounds(points,{padding:[32,32],maxZoom:15});firstLoad=false;}
-        status.textContent='최근 접수 '+(result.data||[]).length+'곳 · 영구 등록 '+staticCount+'곳';
+        status.textContent='최근 접수 '+temporaryCount+'곳 · 영구 등록 '+permanentCount+'곳';
       };
       await loadTemporary();
       client.channel('temporary-map-locations').on('postgres_changes',{event:'*',schema:'public',table:'temporary_reports'},()=>loadTemporary()).subscribe();
