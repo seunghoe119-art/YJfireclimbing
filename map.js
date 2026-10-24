@@ -132,10 +132,8 @@
       const center=L.latLng(result.coords.latitude,result.coords.longitude);
       if(!userLocationMarker){
         const icon=L.divIcon({className:'my-location-marker',html:'<span class="my-location-dot"></span>',iconSize:[24,24],iconAnchor:[12,12]});
-        userLocationMarker=L.marker(center,{icon,title:'내 현재 위치',alt:'내 현재 위치',zIndexOffset:1000,bubblingMouseEvents:false}).addTo(map);
+        userLocationMarker=L.marker(center,{icon,title:'내 현재 위치',alt:'내 현재 위치',zIndexOffset:1000,interactive:false,keyboard:false,bubblingMouseEvents:false}).addTo(map);
       }else userLocationMarker.setLatLng(center);
-      const info=document.createElement('div');info.textContent='내 현재 위치 · 정확도 약 '+Math.round(result.coords.accuracy)+'m · '+new Date(result.timestamp).toLocaleTimeString('ko-KR');
-      userLocationMarker.bindPopup(info);
       map.fitBounds(center.toBounds(600),{padding:[24,24],maxZoom:18,animate:false});
       myLocationStatus.textContent='내 현재 위치를 중심으로 약 300m 주변을 표시했습니다. GPS 정확도 약 '+Math.round(result.coords.accuracy)+'m · 다시 누르면 위치를 갱신합니다.';
       document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});
