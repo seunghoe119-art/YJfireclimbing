@@ -162,7 +162,7 @@
       if(point.photo){const url=new URL(String(point.photo),window.location.href);if(url.origin===window.location.origin){const img=document.createElement('img');img.src=url.href;img.alt=heading.textContent+' 설치 사진';img.loading='lazy';content.append(document.createElement('br'),img);}}
       if(window.YJManagement) window.YJManagement.decorate(content,point);
       const marker=L.circleMarker(location,{radius:8,color:'#fff',weight:2,fillColor:'#d92536',fillOpacity:1}).addTo(map).bindPopup(content);
-      const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=point.address||'주소 미등록';
+      const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=window.YJManagement.locationName(point);
       const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록');button.append(small);
       button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);
       if(!requestedPointShown && new URLSearchParams(window.location.search).get('point')===point.id){map.setView(location,17);marker.openPopup();requestedPointShown=true;}
@@ -195,7 +195,7 @@
           const date=document.createElement('p');date.textContent=(point.approved_at?'승인 '+new Date(point.approved_at).toLocaleString('ko-KR'):'접수 '+new Date(point.submitted_at).toLocaleString('ko-KR')+' · 7일 후 만료')+' · GPS 오차 약 '+point.accuracy_m+'m';popup.append(date);
           const link=document.createElement('a');link.href='https://www.google.com/maps?q='+point.latitude+','+point.longitude;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Google 지도에서 보기 ↗';popup.append(link);
           if(!point.approved_at && window.YJManagement){
-            popup.replaceChildren();const M=window.YJManagement;popup.append(M.el('strong',point.address||'주소 미등록'),M.el('p','설치 의용소방대: '+(point.volunteer_team||'미등록')),M.el('p','설치 신청 중 · '+new Date(point.submitted_at).toLocaleString('ko-KR')));if(point.note)popup.append(M.el('p','상세 위치: '+point.note));M.installationPhotos(popup,point);popup.append(link);
+            popup.replaceChildren();const M=window.YJManagement;popup.append(M.el('strong',M.locationName(point)),M.el('p','설치 의용소방대: '+(point.volunteer_team||'미등록')),M.el('p','설치 신청 중 · '+new Date(point.submitted_at).toLocaleString('ko-KR')));if(point.note)popup.append(M.el('p','상세 위치: '+point.note));M.installationPhotos(popup,point);popup.append(link);
           }
           let cancelEntries=[];
           try { cancelEntries=JSON.parse(localStorage.getItem('yjfireclimbing.cancelTokens.v1')||'[]'); } catch {}
@@ -220,7 +220,7 @@
           }
           if(point.approved_at && window.YJManagement) window.YJManagement.decorate(popup,point);
           const marker=L.circleMarker(location,{radius:point.approved_at?10:9,color:'#fff',weight:3,fillColor:point.approved_at?'#d92536':'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);tempLayers.push(marker);
-          const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=point.address||'주소 미등록';const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록')+(point.approved_at?'':' · 신청 중');button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);if(!requestedPointShown && new URLSearchParams(locationSearch()).get('point')===point.id){map.setView(location,17);marker.openPopup();requestedPointShown=true;}
+          const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=window.YJManagement.locationName(point);const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록')+(point.approved_at?'':' · 신청 중');button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);if(!requestedPointShown && new URLSearchParams(locationSearch()).get('point')===point.id){map.setView(location,17);marker.openPopup();requestedPointShown=true;}
         }
         const livePoints=(result.data||[]).map(point=>[point.latitude,point.longitude]);points.splice(0,points.length,...permanentPoints,...livePoints);
         const permanentCount=staticCount+(result.data||[]).filter(point=>point.approved_at).length;
