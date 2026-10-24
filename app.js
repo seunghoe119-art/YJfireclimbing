@@ -62,12 +62,13 @@ async function choose(event) {
   const previous=after?afterPhotoURL:photoURL;if(previous)URL.revokeObjectURL(previous);
   if(after){afterPhoto=candidate;afterPhotoURL=url;}else{photo=candidate;photoURL=url;}selectedAt=new Date();
   const suffix=after?'After':'';$('preview'+suffix).src=url;$('preview'+suffix).hidden=false;$('placeholder'+suffix).hidden=true;
-  $('photoInfo'+suffix).textContent=candidate.name+' · '+(candidate.size/1000000).toFixed(2)+'MB · 저장할 때 500KB 미만으로 압축';
+  $('photoInfo'+suffix).textContent=candidate.name+' · '+(candidate.size/1000000).toFixed(2)+'MB';
+  $('photoInfo'+suffix).hidden=false;
   $('sendConsent').checked = false; status(''); update();
 }
 $('camera').addEventListener('change', choose); $('album').addEventListener('change', choose);$('cameraAfter').addEventListener('change',choose);$('albumAfter').addEventListener('change',choose);
 $('gpsConsent').addEventListener('change', () => {
-  if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('gpsPreview').hidden=true;$('address').textContent='현재 위치를 가져오면 위도·경도가 자동으로 입력됩니다.'; $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = '동의를 해제하여 위치정보를 지웠습니다.'; }
+  if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('gpsPreview').hidden=true;$('address').textContent='현재 위치를 가져오면 위도·경도가 자동으로 입력됩니다.'; $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = ''; }
   $('sendConsent').checked = false; update();
 });
 $('sendConsent').addEventListener('change', update);
@@ -97,7 +98,7 @@ $('report').addEventListener('submit', async event => {
   if (navigator.onLine === false) { status('인터넷 연결이 없습니다. 연결 후 다시 전송해 주세요.', 'error'); return; }
   busy = true; update();
   let beforeData,afterData;
-  try{status('설치 전·후 사진을 500KB 미만으로 압축하고 있습니다…');[beforeData,afterData]=await Promise.all([compressedPhoto(photo),compressedPhoto(afterPhoto)]);}catch(error){busy=false;status(error.message||'사진 압축에 실패했습니다. 다시 선택해 주세요.','error');update();return;}
+  try{status('사진을 준비하고 있습니다…');[beforeData,afterData]=await Promise.all([compressedPhoto(photo),compressedPhoto(afterPhoto)]);}catch(error){busy=false;status(error.message||'사진 압축에 실패했습니다. 다시 선택해 주세요.','error');update();return;}
   let reportId = crypto.randomUUID();
   let mapSaved = false;
   let cancelTokenSaved = false;
