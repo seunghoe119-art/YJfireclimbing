@@ -115,6 +115,36 @@
     renderMeasurement();
   });
   L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
+
+  // Show the visitor's position only after an explicit button press.
+  let userLocationMarker=null, userLocationSelected=false;
+  const myLocationButton=document.getElementById('myLocation');
+  const myLocationStatus=document.getElementById('myLocationStatus');
+  myLocationButton.addEventListener('click',()=>{
+    if(!window.isSecureContext || !navigator.geolocation){
+      myLocationStatus.textContent='현재 위치를 사용할 수 없습니다. HTTPS 주소를 Safari 또는 Chrome에서 열어 주세요.';return;
+    }
+    userLocationSelected=true;
+    myLocationButton.disabled=true;myLocationButton.textContent='위치 확인 중…';
+    myLocationStatus.textContent='현재 위치를 확인합니다. 브라우저의 위치 권한 요청을 허용해 주세요.';
+    navigator.geolocation.getCurrentPosition(result=>{
+      myLocationButton.disabled=false;myLocationButton.textContent='📍 내 현재 위치';
+      const center=L.latLng(result.coords.latitude,result.coords.longitude);
+      if(!userLocationMarker){
+        const icon=L.divIcon({className:'my-location-marker',html:'<span class="my-location-dot"></span>',iconSize:[24,24],iconAnchor:[12,12]});
+        userLocationMarker=L.marker(center,{icon,title:'내 현재 위치',alt:'내 현재 위치',zIndexOffset:1000,bubblingMouseEvents:false}).addTo(map);
+      }else userLocationMarker.setLatLng(center);
+      const info=document.createElement('div');info.textContent='내 현재 위치 · 정확도 약 '+Math.round(result.coords.accuracy)+'m · '+new Date(result.timestamp).toLocaleTimeString('ko-KR');
+      userLocationMarker.bindPopup(info);
+      map.fitBounds(center.toBounds(600),{padding:[24,24],maxZoom:18,animate:false});
+      myLocationStatus.textContent='내 현재 위치를 중심으로 약 300m 주변을 표시했습니다. GPS 정확도 약 '+Math.round(result.coords.accuracy)+'m · 다시 누르면 위치를 갱신합니다.';
+      document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});
+    },error=>{
+      myLocationButton.disabled=false;myLocationButton.textContent='📍 내 현재 위치';
+      myLocationStatus.textContent=({1:'위치 권한이 거부되었습니다. 브라우저 설정에서 위치를 허용한 뒤 다시 눌러 주세요.',2:'현재 위치를 확인할 수 없습니다. 신호가 잘 잡히는 곳에서 다시 눌러 주세요.',3:'위치 확인 시간이 초과되었습니다. 다시 눌러 주세요.'})[error.code]||'현재 위치를 확인하지 못했습니다. 다시 눌러 주세요.';
+    },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+  });
+
   const points = [...officePoints];
   let count=0;
   document.getElementById('stationView').onclick=()=>map.setView(station,16);
@@ -193,7 +223,7 @@
         const permanentCount=staticCount+(result.data||[]).filter(point=>point.approved_at).length;
         const temporaryCount=(result.data||[]).filter(point=>!point.approved_at).length;
         const total=staticCount+(result.data||[]).length;document.getElementById('pointCount').textContent=String(total);document.getElementById('emptyPoints').hidden=total>0;
-        if(firstLoad&&livePoints.length&&!requestedPointShown){map.fitBounds(points,{padding:[32,32],maxZoom:15});firstLoad=false;}
+        if(firstLoad&&livePoints.length&&!requestedPointShown&&!userLocationSelected){map.fitBounds(points,{padding:[32,32],maxZoom:15});firstLoad=false;}
         status.textContent='최근 접수 '+temporaryCount+'곳 · 영구 등록 '+permanentCount+'곳';
       };
       await loadTemporary();
