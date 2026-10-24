@@ -22,7 +22,7 @@ jobs:
       - name: Prepare website
         run: |
           mkdir _site
-          cp index.html style.css app.js config.js map.html map.js approve.html approve.js admin.html admin.js management.js management.css manage.html locations.json leaflet.js leaflet.css _site/
+          cp index.html style.css app.js config.js map.html map.js approve.html approve.js admin.html admin.js management.js management.css manage.html locations.json leaflet.js leaflet.css 영종소방서_소화기관리_대원교육용.pptx _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
