@@ -145,6 +145,15 @@
     },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
   });
 
+  const issueMarkers=new Map();let issuePoints=new Set(),issueRefreshBusy=false;
+  function paintIssueMarkers(){for(const [id,marker] of issueMarkers){const active=issuePoints.has(id),element=marker.getElement();if(element)element.classList.toggle('issue-alert-marker',active);const popup=marker.getPopup()?.getContent();if(popup&&typeof popup.querySelector==='function'){let warning=popup.querySelector('.issue-warning');if(active&&!warning){warning=document.createElement('p');warning.className='issue-warning';warning.textContent='⚠ 미해결 이상 신고가 있습니다.';popup.prepend(warning);}else if(!active&&warning)warning.remove();}}}
+  async function refreshIssueMarkers(){if(issueRefreshBusy||!window.YJManagement)return;issueRefreshBusy=true;try{issuePoints=await window.YJManagement.openIssuePoints();paintIssueMarkers();}finally{issueRefreshBusy=false;}}
+  function trackIssueMarker(id,marker){issueMarkers.set(id,marker);paintIssueMarkers();}
+  window.addEventListener('yj-issues-changed',refreshIssueMarkers);
+  window.addEventListener('storage',e=>{if(e.key==='yj.issues.changed')refreshIssueMarkers();});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshIssueMarkers();});
+  setInterval(()=>{if(!document.hidden)refreshIssueMarkers();},15000);
+  refreshIssueMarkers();
   const points = [...officePoints];
   let count=0;
   document.getElementById('stationView').onclick=()=>map.setView(station,16);
@@ -163,7 +172,7 @@
       const link=document.createElement('a');link.textContent='Google 지도에서 보기 ↗';link.href=`https://www.google.com/maps?q=${point.latitude},${point.longitude}`;link.target='_blank';link.rel='noopener noreferrer';content.append(link);
       if(point.photo){const url=new URL(String(point.photo),window.location.href);if(url.origin===window.location.origin){const img=document.createElement('img');img.src=url.href;img.alt=heading.textContent+' 설치 사진';img.loading='lazy';content.append(document.createElement('br'),img);}}
       if(window.YJManagement) window.YJManagement.decorate(content,point);
-      const marker=L.circleMarker(location,{radius:8,color:'#fff',weight:2,fillColor:'#d92536',fillOpacity:1}).addTo(map).bindPopup(content);
+      const marker=L.circleMarker(location,{radius:8,color:'#fff',weight:2,fillColor:'#d92536',fillOpacity:1}).addTo(map).bindPopup(content);trackIssueMarker(point.id,marker);
       const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=window.YJManagement.locationName(point);
       const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록');button.append(small);
       button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);
@@ -221,7 +230,7 @@
             popup.append(cancelButton);
           }
           if(point.approved_at && window.YJManagement) window.YJManagement.decorate(popup,point);
-          const marker=L.circleMarker(location,{radius:point.approved_at?10:9,color:'#fff',weight:3,fillColor:point.approved_at?'#d92536':'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);tempLayers.push(marker);
+          const marker=L.circleMarker(location,{radius:point.approved_at?10:9,color:'#fff',weight:3,fillColor:point.approved_at?'#d92536':'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);trackIssueMarker(point.id,marker);tempLayers.push(marker);
           const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=window.YJManagement.locationName(point);const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록')+(point.approved_at?'':' · 신청 중');button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);if(!requestedPointShown && new URLSearchParams(locationSearch()).get('point')===point.id){map.setView(location,17);marker.openPopup();requestedPointShown=true;}
         }
         const livePoints=(result.data||[]).map(point=>[point.latitude,point.longitude]);points.splice(0,points.length,...permanentPoints,...livePoints);
