@@ -161,6 +161,8 @@ $('report').addEventListener('submit', async event => {
 window.addEventListener('pageshow', () => { busy = false; update(); });
 if (new URLSearchParams(window.location.search).get('sent') === '1') {
   completed = true; status('사진과 위치 전송 요청이 완료되었습니다.', 'success');
+  $('sendToast').hidden = false;
+  window.setTimeout(() => { $('sendToast').hidden = true; }, 3000);
   $('reset').hidden = false; update();
   window.history.replaceState(null, '', window.location.pathname);
 }
