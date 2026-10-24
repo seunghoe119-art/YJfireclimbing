@@ -43,9 +43,12 @@ $('setup').hidden = configured;
 $('recipient').textContent = !configured ? '수신 이메일 설정 전에는 전송할 수 없습니다.' : '수신: ' + (config.recipientLabel || '현장 접수 담당자') + ' · 이메일: FormSubmit.co · 최근 위치: 7일간 지도 표시';
 function status(message, type = '') { $('status').textContent = message; $('status').className = type; }
 function update() {
-  $('send').disabled = !configured || !photo || !afterPhoto || !position || !$('gpsConsent').checked || !$('sendConsent').checked || busy || completed || locating;
+  const missing=[];if(!photo)missing.push('설치 전 사진');if(!afterPhoto)missing.push('설치 후 사진');if(!$('gpsConsent').checked)missing.push('동의 체크');if(!position)missing.push('현재 위치');$('remainingSteps').textContent=completed?'':busy?'':missing.length?'아직 필요한 항목: '+missing.join(' · '):'준비되었습니다. 전송 버튼을 눌러주세요.';
+
+  $('send').disabled = !configured || !photo || !afterPhoto || !position || !$('gpsConsent').checked || busy || completed || locating;
   $('locate').disabled = !$('gpsConsent').checked || busy || completed || locating;
-  for (const id of ['camera','album','cameraAfter','albumAfter','gpsConsent','sendConsent','note','volunteerTeam']) $(id).disabled = busy || completed;
+  $('locate').textContent=locating?'현재 위치 확인 중…':position?'현재 위치 다시 가져오기':'현재 위치 가져오기';
+  for (const id of ['camera','album','cameraAfter','albumAfter','gpsConsent','note','volunteerTeam']) $(id).disabled = busy || completed;
   $('send').textContent = busy ? '전송 중… 잠시 기다려 주세요' : completed ? '접수 요청 완료' : '사진과 위치 전송하기 ↗';
 }
 async function choose(event) {
@@ -64,27 +67,27 @@ async function choose(event) {
   const suffix=after?'After':'';$('preview'+suffix).src=url;$('preview'+suffix).hidden=false;$('placeholder'+suffix).hidden=true;
   $('photoInfo'+suffix).textContent=candidate.name+' · '+(candidate.size/1000000).toFixed(2)+'MB';
   $('photoInfo'+suffix).hidden=false;
-  $('sendConsent').checked = false; status(''); update();
+   status(''); update();
 }
 $('camera').addEventListener('change', choose); $('album').addEventListener('change', choose);$('cameraAfter').addEventListener('change',choose);$('albumAfter').addEventListener('change',choose);
 $('gpsConsent').addEventListener('change', () => {
   if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('gpsPreview').hidden=true;$('address').textContent='현재 위치를 가져오면 위도·경도가 자동으로 입력됩니다.'; $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = ''; }
-  $('sendConsent').checked = false; update();
+   update();
 });
-$('sendConsent').addEventListener('change', update);
-$('note').addEventListener('input', () => { $('sendConsent').checked = false; update(); });
-$('volunteerTeam').addEventListener('change', () => { $('sendConsent').checked = false; update(); });
+
+$('note').addEventListener('input', () => {  update(); });
+$('volunteerTeam').addEventListener('change', () => {  update(); });
 $('locate').addEventListener('click', () => {
   if (!$('gpsConsent').checked || busy || locating) return;
   if (!window.isSecureContext || !navigator.geolocation) { status('위치 기능을 사용할 수 없습니다. HTTPS 주소를 Safari 또는 Chrome에서 열어 주세요.', 'error'); return; }
   const request = ++locationRequest;
-  position = null;$('gpsPreview').hidden=true;$('address').textContent='위치 확인 중…'; locating = true; $('map').hidden = true; $('sendConsent').checked = false;
+  position = null;$('gpsPreview').hidden=true;$('address').textContent='위치 확인 중…'; locating = true; $('map').hidden = true; 
   $('locationInfo').textContent = '현재 위치를 확인하고 있습니다…'; status(''); update();
   navigator.geolocation.getCurrentPosition(result => {
     if (request !== locationRequest || !$('gpsConsent').checked) return;
     locating = false;
     position = { latitude: Number(result.coords.latitude.toFixed(5)), longitude: Number(result.coords.longitude.toFixed(5)), accuracy: result.coords.accuracy, timestamp: result.timestamp };
-    $('locationInfo').textContent = `위도 ${position.latitude.toFixed(5)} · 경도 ${position.longitude.toFixed(5)}\n정확도 약 ${Math.round(position.accuracy)}m · ${new Date(position.timestamp).toLocaleString('ko-KR')}`;
+    $('locationInfo').textContent = `위치 확인 완료 · 위치 오차 약 ${Math.round(position.accuracy)}m`;
     $('map').href = `https://www.google.com/maps?q=${position.latitude},${position.longitude}`; $('map').hidden = false;showGpsPreview(); update();
   }, error => {
     if (request !== locationRequest) return;
@@ -201,3 +204,8 @@ $('closePhotoChoice').addEventListener('click', () => $('photoChoice').close());
 
 
 $('placeholderAfter').addEventListener('click',()=>{if(!busy&&!completed){activePhotoStage='after';$('photoChoice').showModal();}});
+
+function showInstall(yes){$('taskMenu').hidden=yes;$('installHeading').hidden=!yes;$('report').hidden=!yes;document.querySelector('.intro').hidden=yes;if(yes&&gpsPreviewMap)setTimeout(()=>gpsPreviewMap.invalidateSize(),0);}
+$('startInstall').addEventListener('click',()=>{history.replaceState(null,'','#install');showInstall(true);$('installHeading').scrollIntoView({behavior:'smooth'});});
+$('backToTasks').addEventListener('click',()=>{history.replaceState(null,'',location.pathname);showInstall(false);$('taskMenu').scrollIntoView({behavior:'smooth'});});
+showInstall(location.hash==='#install'||completed);
