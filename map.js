@@ -1,5 +1,7 @@
 'use strict';
 (async () => {
+  const locationSearch=()=>window.location.search;
+  let requestedPointShown=false;
   const status = document.getElementById('mapStatus');
   if (!window.L) { status.textContent = '지도를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 새로고침해 주세요.'; return; }
   const offices = [
@@ -129,10 +131,12 @@
       const coords=document.createElement('p');coords.textContent=`${point.latitude}, ${point.longitude}`;content.append(coords);
       const link=document.createElement('a');link.textContent='Google 지도에서 보기 ↗';link.href=`https://www.google.com/maps?q=${point.latitude},${point.longitude}`;link.target='_blank';link.rel='noopener noreferrer';content.append(link);
       if(point.photo){const url=new URL(String(point.photo),window.location.href);if(url.origin===window.location.origin){const img=document.createElement('img');img.src=url.href;img.alt=heading.textContent+' 설치 사진';img.loading='lazy';content.append(document.createElement('br'),img);}}
+      if(window.YJManagement) window.YJManagement.decorate(content,point);
       const marker=L.circleMarker(location,{radius:8,color:'#fff',weight:2,fillColor:'#d92536',fillOpacity:1}).addTo(map).bindPopup(content);
-      const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=heading.textContent;
-      const small=document.createElement('small');small.textContent=[point.type,point.installedAt].filter(Boolean).join(' · ');button.append(small);
+      const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=point.address||'주소 미등록';
+      const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록');button.append(small);
       button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);
+      if(!requestedPointShown && new URLSearchParams(window.location.search).get('point')===point.id){map.setView(location,17);marker.openPopup();requestedPointShown=true;}
     }
     document.getElementById('pointCount').textContent=String(count);document.getElementById('emptyPoints').hidden=count>0;
     status.textContent=`등록된 설치 지점 ${count}곳${invalid?' · 좌표 오류 '+invalid+'건 제외':''}`;
@@ -146,9 +150,9 @@
       const client=createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
       let tempLayers=[],tempItems=[],firstLoad=true;
       const loadTemporary=async()=>{
-        let result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
+        let result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at,name,address,note,volunteer_team,photo_data').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
         if(result.error && (result.error.code==='42703'||result.error.code==='PGRST204')){
-          result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
+          result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
         }
         if(result.error)throw result.error;
         for(const item of tempLayers)map.removeLayer(item);
@@ -159,6 +163,9 @@
           const popup=document.createElement('div');const title=document.createElement('strong');title.textContent=point.approved_at?'담당자 승인 · 영구 등록 지점':'최근 접수 위치 · 7일 임시 표시';popup.append(title);
           const date=document.createElement('p');date.textContent=(point.approved_at?'승인 '+new Date(point.approved_at).toLocaleString('ko-KR'):'접수 '+new Date(point.submitted_at).toLocaleString('ko-KR')+' · 7일 후 만료')+' · GPS 오차 약 '+point.accuracy_m+'m';popup.append(date);
           const link=document.createElement('a');link.href='https://www.google.com/maps?q='+point.latitude+','+point.longitude;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Google 지도에서 보기 ↗';popup.append(link);
+          if(!point.approved_at && window.YJManagement){
+            popup.replaceChildren();const M=window.YJManagement;popup.append(M.el('strong',point.address||'주소 미등록'),M.el('p','설치 의용소방대: '+(point.volunteer_team||'미등록')),M.el('p','설치 신청 중 · '+new Date(point.submitted_at).toLocaleString('ko-KR')));if(point.note)popup.append(M.el('p','상세 위치: '+point.note));M.photo(popup,point.photo_data);popup.append(link);
+          }
           let cancelEntries=[];
           try { cancelEntries=JSON.parse(localStorage.getItem('yjfireclimbing.cancelTokens.v1')||'[]'); } catch {}
           const cancelEntry=cancelEntries.find(entry=>entry.id===point.id && entry.expiresAt>Date.now());
@@ -178,14 +185,15 @@
             });
             popup.append(cancelButton);
           }
+          if(point.approved_at && window.YJManagement) window.YJManagement.decorate(popup,point);
           const marker=L.circleMarker(location,{radius:point.approved_at?10:9,color:'#fff',weight:3,fillColor:point.approved_at?'#d92536':'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);tempLayers.push(marker);
-          const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=point.approved_at?'영구 등록 지점 · 담당자 승인':'최근 접수 위치 · 7일 임시';const small=document.createElement('small');small.textContent=(point.approved_at?new Date(point.approved_at).toLocaleString('ko-KR')+' 승인 · ':new Date(point.submitted_at).toLocaleString('ko-KR')+' · ')+point.latitude.toFixed(5)+', '+point.longitude.toFixed(5);button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);
+          const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=point.address||'주소 미등록';const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록')+(point.approved_at?'':' · 신청 중');button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);if(!requestedPointShown && new URLSearchParams(locationSearch()).get('point')===point.id){map.setView(location,17);marker.openPopup();requestedPointShown=true;}
         }
         const livePoints=(result.data||[]).map(point=>[point.latitude,point.longitude]);points.splice(0,points.length,...permanentPoints,...livePoints);
         const permanentCount=staticCount+(result.data||[]).filter(point=>point.approved_at).length;
         const temporaryCount=(result.data||[]).filter(point=>!point.approved_at).length;
         const total=staticCount+(result.data||[]).length;document.getElementById('pointCount').textContent=String(total);document.getElementById('emptyPoints').hidden=total>0;
-        if(firstLoad&&livePoints.length){map.fitBounds(points,{padding:[32,32],maxZoom:15});firstLoad=false;}
+        if(firstLoad&&livePoints.length&&!requestedPointShown){map.fitBounds(points,{padding:[32,32],maxZoom:15});firstLoad=false;}
         status.textContent='최근 접수 '+temporaryCount+'곳 · 영구 등록 '+permanentCount+'곳';
       };
       await loadTemporary();
@@ -194,3 +202,4 @@
     }catch(error){status.textContent='Supabase 임시 위치를 불러오지 못했습니다. GPS 접수는 계속 이메일로 받을 수 있습니다.';console.error('temporary location map failed',error);}
   } else {status.textContent='Supabase 연결 후 최근 접수 위치가 7일간 표시됩니다.';}
 })();
+
