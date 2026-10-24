@@ -27,6 +27,23 @@ function getSupabase() {
   if (!supabaseClientPromise) supabaseClientPromise = import('https://esm.sh/@supabase/supabase-js@2').then(({ createClient }) => createClient(config.supabaseUrl, config.supabaseAnonKey));
   return supabaseClientPromise;
 }
+async function compressedPhoto(file) {
+  const image = new Image(), url = URL.createObjectURL(file);
+  try {
+    image.src = url; await image.decode();
+    const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas'); canvas.width = Math.round(image.naturalWidth * scale); canvas.height = Math.round(image.naturalHeight * scale);
+    const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('canvas');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(image,0,0,canvas.width,canvas.height);
+    for (const quality of [0.8,0.65,0.5,0.35]) {
+      const value = canvas.toDataURL('image/jpeg',quality);
+      if (value.length <= 400000) return value;
+    }
+    canvas.width = Math.max(1,Math.round(canvas.width/2)); canvas.height = Math.max(1,Math.round(canvas.height/2));
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
+    const value=canvas.toDataURL('image/jpeg',0.5);if(value.length>400000)throw new Error('photo size');return value;
+  } finally { URL.revokeObjectURL(url); }
+}
 let photo = null, photoURL = null, position = null, busy = false, completed = false, locating = false, locationRequest = 0, selectedAt = null;
 $('setup').hidden = configured;
 $('recipient').textContent = !configured ? '수신 이메일 설정 전에는 전송할 수 없습니다.' : '수신: ' + (config.recipientLabel || '현장 접수 담당자') + ' · 이메일: FormSubmit.co · 최근 위치: 7일간 지도 표시';
@@ -34,7 +51,7 @@ function status(message, type = '') { $('status').textContent = message; $('stat
 function update() {
   $('send').disabled = !configured || !photo || !position || !$('gpsConsent').checked || !$('sendConsent').checked || busy || completed || locating;
   $('locate').disabled = !$('gpsConsent').checked || busy || completed || locating;
-  for (const id of ['camera','album','gpsConsent','sendConsent','note','volunteerTeam']) $(id).disabled = busy || completed;
+  for (const id of ['camera','album','gpsConsent','sendConsent','note','address','volunteerTeam']) $(id).disabled = busy || completed;
   $('send').textContent = busy ? '전송 중… 잠시 기다려 주세요' : completed ? '접수 요청 완료' : '사진과 위치 전송하기 ↗';
 }
 async function choose(event) {
@@ -60,6 +77,8 @@ $('gpsConsent').addEventListener('change', () => {
 });
 $('sendConsent').addEventListener('change', update);
 $('note').addEventListener('input', () => { $('sendConsent').checked = false; update(); });
+$('address').addEventListener('input', () => { $('sendConsent').checked = false; update(); });
+$('volunteerTeam').addEventListener('change', () => { $('sendConsent').checked = false; update(); });
 $('locate').addEventListener('click', () => {
   if (!$('gpsConsent').checked || busy || locating) return;
   if (!window.isSecureContext || !navigator.geolocation) { status('위치 기능을 사용할 수 없습니다. HTTPS 주소를 Safari 또는 Chrome에서 열어 주세요.', 'error'); return; }
@@ -93,12 +112,16 @@ $('report').addEventListener('submit', async event => {
       const client = await getSupabase();
       const cancelToken = createCancelToken();
       const cancelTokenHash = await hashCancelToken(cancelToken);
+      let metadataSaved = true;
       let result = await client.from('temporary_reports').insert({
         id: reportId, latitude: position.latitude, longitude: position.longitude,
-        accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash
+        accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash,
+        name: '', address: $('address').value.trim(), note: $('note').value.trim(),
+        volunteer_team: $('volunteerTeam').value, photo_data: await compressedPhoto(photo)
       });
       if (result.error) {
-        // Keep ordinary 7-day map submissions working until the one-time cancellation SQL is installed.
+        metadataSaved = false;
+        // Preserve GPS/email submission if the new schema is not yet available.
         result = await client.from('temporary_reports').insert({
           id: reportId, latitude: position.latitude, longitude: position.longitude,
           accuracy_m: Math.round(position.accuracy)
@@ -106,12 +129,13 @@ $('report').addEventListener('submit', async event => {
       } else {
         rememberCancelToken(reportId, cancelToken);
         cancelTokenSaved = true;
-        const approveURL = new URL('approve.html', window.location.href);
+        const approveURL = new URL('admin.html', window.location.href);
         approveURL.searchParams.set('id', reportId);
         approvalURL = approveURL.href;
       }
       if (result.error) throw result.error;
       mapSaved = true;
+      if (!metadataSaved) console.warn('Report saved without photo metadata; administrator schema setup required.');
     } catch (error) {
       console.error('Temporary map location could not be saved', error);
     }
@@ -129,6 +153,7 @@ $('report').addEventListener('submit', async event => {
   data.append('위도', String(position.latitude)); data.append('경도', String(position.longitude));
   data.append('GPS 정확도(m)', String(position.accuracy));
   data.append('위치 확인 시각', new Date(position.timestamp).toISOString());
+  data.append('설치 주소', $('address').value.trim());
   data.append('Google 지도', $('map').href); data.append('현장 메모', $('note').value.trim());
   data.append('점검/등록 의용소방대', $('volunteerTeam').value || '선택 안 함');
   data.append('위치 및 전송 동의', '사용자가 명시적으로 동의함');
@@ -174,3 +199,4 @@ $('placeholder').addEventListener('click', () => { if (!busy && !completed) $('p
 $('chooseCamera').addEventListener('click', () => { $('photoChoice').close(); $('camera').click(); });
 $('chooseAlbum').addEventListener('click', () => { $('photoChoice').close(); $('album').click(); });
 $('closePhotoChoice').addEventListener('click', () => $('photoChoice').close());
+
