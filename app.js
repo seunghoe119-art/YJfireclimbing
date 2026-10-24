@@ -27,31 +27,16 @@ function getSupabase() {
   if (!supabaseClientPromise) supabaseClientPromise = import('https://esm.sh/@supabase/supabase-js@2').then(({ createClient }) => createClient(config.supabaseUrl, config.supabaseAnonKey));
   return supabaseClientPromise;
 }
-async function compressedPhoto(file) {
-  const image = new Image(), url = URL.createObjectURL(file);
-  try {
-    image.src = url; await image.decode();
-    const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
-    const canvas = document.createElement('canvas'); canvas.width = Math.round(image.naturalWidth * scale); canvas.height = Math.round(image.naturalHeight * scale);
-    const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('canvas');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(image,0,0,canvas.width,canvas.height);
-    for (const quality of [0.8,0.65,0.5,0.35]) {
-      const value = canvas.toDataURL('image/jpeg',quality);
-      if (value.length <= 400000) return value;
-    }
-    canvas.width = Math.max(1,Math.round(canvas.width/2)); canvas.height = Math.max(1,Math.round(canvas.height/2));
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
-    const value=canvas.toDataURL('image/jpeg',0.5);if(value.length>400000)throw new Error('photo size');return value;
-  } finally { URL.revokeObjectURL(url); }
-}
+const compressedPhoto=file=>window.YJManagement.compress(file);
+let afterPhoto=null,afterPhotoURL=null,activePhotoStage='before';
 let photo = null, photoURL = null, position = null, busy = false, completed = false, locating = false, locationRequest = 0, selectedAt = null;
 $('setup').hidden = configured;
 $('recipient').textContent = !configured ? '수신 이메일 설정 전에는 전송할 수 없습니다.' : '수신: ' + (config.recipientLabel || '현장 접수 담당자') + ' · 이메일: FormSubmit.co · 최근 위치: 7일간 지도 표시';
 function status(message, type = '') { $('status').textContent = message; $('status').className = type; }
 function update() {
-  $('send').disabled = !configured || !photo || !position || !$('gpsConsent').checked || !$('sendConsent').checked || busy || completed || locating;
+  $('send').disabled = !configured || !photo || !afterPhoto || !position || !$('gpsConsent').checked || !$('sendConsent').checked || busy || completed || locating;
   $('locate').disabled = !$('gpsConsent').checked || busy || completed || locating;
-  for (const id of ['camera','album','gpsConsent','sendConsent','note','address','volunteerTeam']) $(id).disabled = busy || completed;
+  for (const id of ['camera','album','cameraAfter','albumAfter','gpsConsent','sendConsent','note','address','volunteerTeam']) $(id).disabled = busy || completed;
   $('send').textContent = busy ? '전송 중… 잠시 기다려 주세요' : completed ? '접수 요청 완료' : '사진과 위치 전송하기 ↗';
 }
 async function choose(event) {
@@ -64,13 +49,14 @@ async function choose(event) {
   const test = new Image();
   try { test.src = url; await test.decode(); }
   catch { URL.revokeObjectURL(url); status('사진을 열 수 없습니다. 다른 사진으로 다시 시도해 주세요.', 'error'); return; }
-  if (photoURL) URL.revokeObjectURL(photoURL);
-  photo = candidate; photoURL = url; selectedAt = new Date();
-  $('preview').src = url; $('preview').hidden = false; $('placeholder').hidden = true;
-  $('photoInfo').textContent = `${candidate.name} · ${(candidate.size / 1000000).toFixed(2)}MB · 선택 시각 ${selectedAt.toLocaleString('ko-KR')}`;
+  const after=event.target.id.endsWith('After');
+  const previous=after?afterPhotoURL:photoURL;if(previous)URL.revokeObjectURL(previous);
+  if(after){afterPhoto=candidate;afterPhotoURL=url;}else{photo=candidate;photoURL=url;}selectedAt=new Date();
+  const suffix=after?'After':'';$('preview'+suffix).src=url;$('preview'+suffix).hidden=false;$('placeholder'+suffix).hidden=true;
+  $('photoInfo'+suffix).textContent=candidate.name+' · '+(candidate.size/1000000).toFixed(2)+'MB · 저장할 때 500KB 미만으로 압축';
   $('sendConsent').checked = false; status(''); update();
 }
-$('camera').addEventListener('change', choose); $('album').addEventListener('change', choose);
+$('camera').addEventListener('change', choose); $('album').addEventListener('change', choose);$('cameraAfter').addEventListener('change',choose);$('albumAfter').addEventListener('change',choose);
 $('gpsConsent').addEventListener('change', () => {
   if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = '동의를 해제하여 위치정보를 지웠습니다.'; }
   $('sendConsent').checked = false; update();
@@ -102,10 +88,13 @@ $('report').addEventListener('submit', async event => {
   event.preventDefault(); update(); if ($('send').disabled) return;
   if (navigator.onLine === false) { status('인터넷 연결이 없습니다. 연결 후 다시 전송해 주세요.', 'error'); return; }
   busy = true; update();
+  let beforeData,afterData;
+  try{status('설치 전·후 사진을 500KB 미만으로 압축하고 있습니다…');[beforeData,afterData]=await Promise.all([compressedPhoto(photo),compressedPhoto(afterPhoto)]);}catch(error){busy=false;status(error.message||'사진 압축에 실패했습니다. 다시 선택해 주세요.','error');update();return;}
   let reportId = crypto.randomUUID();
   let mapSaved = false;
   let cancelTokenSaved = false;
   let approvalURL = '';
+  try{if(window.YJManagement?.local){await window.YJManagement.local.put('points',[{id:reportId,_owned:true,latitude:position.latitude,longitude:position.longitude,accuracy_m:Math.round(position.accuracy),submitted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString(),name:'',address:$('address').value.trim(),note:$('note').value.trim(),volunteer_team:$('volunteerTeam').value,photo_before_data:beforeData,photo_after_data:afterData}]);const url=new URL('admin.html',window.location.href);url.searchParams.set('id',reportId);approvalURL=url.href;}}catch(error){console.warn('Local report copy could not be saved',error);}
   if (supabaseReady) {
     try {
       status('위치를 임시 지도에 등록하고 있습니다…');
@@ -117,7 +106,7 @@ $('report').addEventListener('submit', async event => {
         id: reportId, latitude: position.latitude, longitude: position.longitude,
         accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash,
         name: '', address: $('address').value.trim(), note: $('note').value.trim(),
-        volunteer_team: $('volunteerTeam').value, photo_data: await compressedPhoto(photo)
+        volunteer_team: $('volunteerTeam').value, photo_before_data:beforeData,photo_after_data:afterData
       });
       if (result.error) {
         metadataSaved = false;
@@ -141,7 +130,8 @@ $('report').addEventListener('submit', async event => {
     }
   }
   const data = new FormData();
-  data.append('attachment', photo, photo.name);
+  data.append('attachment_before',window.YJManagement.dataFile(beforeData,'installation-before.jpg'));
+  data.append('attachment_after',window.YJManagement.dataFile(afterData,'installation-after.jpg'));
   data.append('_captcha', 'false');
   data.append('_honey', '');
   data.append('_subject', config.subject || '[YJfireclimbing] 현장 접수'); data.append('_template', 'table');
@@ -195,8 +185,10 @@ if (new URLSearchParams(window.location.search).get('sent') === '1') {
 $('reset').addEventListener('click', () => { window.location.reload(); });
 update();
 
-$('placeholder').addEventListener('click', () => { if (!busy && !completed) $('photoChoice').showModal(); });
-$('chooseCamera').addEventListener('click', () => { $('photoChoice').close(); $('camera').click(); });
-$('chooseAlbum').addEventListener('click', () => { $('photoChoice').close(); $('album').click(); });
+$('placeholder').addEventListener('click', () => { if (!busy && !completed){activePhotoStage='before';$('photoChoice').showModal();} });
+$('chooseCamera').addEventListener('click', () => { $('photoChoice').close(); $(activePhotoStage==='after'?'cameraAfter':'camera').click(); });
+$('chooseAlbum').addEventListener('click', () => { $('photoChoice').close(); $(activePhotoStage==='after'?'albumAfter':'album').click(); });
 $('closePhotoChoice').addEventListener('click', () => $('photoChoice').close());
 
+
+$('placeholderAfter').addEventListener('click',()=>{if(!busy&&!completed){activePhotoStage='after';$('photoChoice').showModal();}});
