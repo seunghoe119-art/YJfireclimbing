@@ -28,6 +28,15 @@ function getSupabase() {
   return supabaseClientPromise;
 }
 const compressedPhoto=file=>window.YJManagement.compress(file);
+let gpsPreviewMap=null,gpsPreviewMarker=null;
+function showGpsPreview(){
+ const holder=$('gpsPreview');holder.hidden=false;
+ $('address').textContent='위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5);
+ if(!window.L){holder.textContent='아래 Google 지도 링크에서 설치 위치를 확인해 주세요.';return;}
+ if(!gpsPreviewMap){gpsPreviewMap=L.map(holder,{scrollWheelZoom:false}).setView([position.latitude,position.longitude],17);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(gpsPreviewMap);gpsPreviewMarker=L.circleMarker([position.latitude,position.longitude],{radius:9,color:'#fff',weight:3,fillColor:'#1683c4',fillOpacity:1,interactive:false}).addTo(gpsPreviewMap);}
+ else{gpsPreviewMap.setView([position.latitude,position.longitude],17);gpsPreviewMarker.setLatLng([position.latitude,position.longitude]);}
+ gpsPreviewMap.invalidateSize();
+}
 let afterPhoto=null,afterPhotoURL=null,activePhotoStage='before';
 let photo = null, photoURL = null, position = null, busy = false, completed = false, locating = false, locationRequest = 0, selectedAt = null;
 $('setup').hidden = configured;
@@ -36,7 +45,7 @@ function status(message, type = '') { $('status').textContent = message; $('stat
 function update() {
   $('send').disabled = !configured || !photo || !afterPhoto || !position || !$('gpsConsent').checked || !$('sendConsent').checked || busy || completed || locating;
   $('locate').disabled = !$('gpsConsent').checked || busy || completed || locating;
-  for (const id of ['camera','album','cameraAfter','albumAfter','gpsConsent','sendConsent','note','address','volunteerTeam']) $(id).disabled = busy || completed;
+  for (const id of ['camera','album','cameraAfter','albumAfter','gpsConsent','sendConsent','note','volunteerTeam']) $(id).disabled = busy || completed;
   $('send').textContent = busy ? '전송 중… 잠시 기다려 주세요' : completed ? '접수 요청 완료' : '사진과 위치 전송하기 ↗';
 }
 async function choose(event) {
@@ -58,28 +67,27 @@ async function choose(event) {
 }
 $('camera').addEventListener('change', choose); $('album').addEventListener('change', choose);$('cameraAfter').addEventListener('change',choose);$('albumAfter').addEventListener('change',choose);
 $('gpsConsent').addEventListener('change', () => {
-  if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = '동의를 해제하여 위치정보를 지웠습니다.'; }
+  if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('gpsPreview').hidden=true;$('address').textContent='현재 위치를 가져오면 위도·경도가 자동으로 입력됩니다.'; $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = '동의를 해제하여 위치정보를 지웠습니다.'; }
   $('sendConsent').checked = false; update();
 });
 $('sendConsent').addEventListener('change', update);
 $('note').addEventListener('input', () => { $('sendConsent').checked = false; update(); });
-$('address').addEventListener('input', () => { $('sendConsent').checked = false; update(); });
 $('volunteerTeam').addEventListener('change', () => { $('sendConsent').checked = false; update(); });
 $('locate').addEventListener('click', () => {
   if (!$('gpsConsent').checked || busy || locating) return;
   if (!window.isSecureContext || !navigator.geolocation) { status('위치 기능을 사용할 수 없습니다. HTTPS 주소를 Safari 또는 Chrome에서 열어 주세요.', 'error'); return; }
   const request = ++locationRequest;
-  position = null; locating = true; $('map').hidden = true; $('sendConsent').checked = false;
+  position = null;$('gpsPreview').hidden=true;$('address').textContent='위치 확인 중…'; locating = true; $('map').hidden = true; $('sendConsent').checked = false;
   $('locationInfo').textContent = '현재 위치를 확인하고 있습니다…'; status(''); update();
   navigator.geolocation.getCurrentPosition(result => {
     if (request !== locationRequest || !$('gpsConsent').checked) return;
     locating = false;
     position = { latitude: Number(result.coords.latitude.toFixed(5)), longitude: Number(result.coords.longitude.toFixed(5)), accuracy: result.coords.accuracy, timestamp: result.timestamp };
     $('locationInfo').textContent = `위도 ${position.latitude.toFixed(5)} · 경도 ${position.longitude.toFixed(5)}\n정확도 약 ${Math.round(position.accuracy)}m · ${new Date(position.timestamp).toLocaleString('ko-KR')}`;
-    $('map').href = `https://www.google.com/maps?q=${position.latitude},${position.longitude}`; $('map').hidden = false; update();
+    $('map').href = `https://www.google.com/maps?q=${position.latitude},${position.longitude}`; $('map').hidden = false;showGpsPreview(); update();
   }, error => {
     if (request !== locationRequest) return;
-    locating = false; position = null;
+    locating = false; position = null;$('address').textContent='위치를 확인하지 못했습니다. 다시 시도해 주세요.';
     $('locationInfo').textContent = ({1:'위치 권한이 거부되었습니다. 브라우저 설정에서 허용한 뒤 다시 시도해 주세요.',2:'현재 위치를 확인할 수 없습니다. 실외나 신호가 잘 잡히는 곳에서 다시 시도해 주세요.',3:'위치 확인 시간이 초과되었습니다. 다시 시도해 주세요.'})[error.code] || '위치 확인에 실패했습니다. 다시 시도해 주세요.';
     update();
   }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
@@ -94,7 +102,7 @@ $('report').addEventListener('submit', async event => {
   let mapSaved = false;
   let cancelTokenSaved = false;
   let approvalURL = '';
-  try{if(window.YJManagement?.local){await window.YJManagement.local.put('points',[{id:reportId,_owned:true,latitude:position.latitude,longitude:position.longitude,accuracy_m:Math.round(position.accuracy),submitted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString(),name:'',address:$('address').value.trim(),note:$('note').value.trim(),volunteer_team:$('volunteerTeam').value,photo_before_data:beforeData,photo_after_data:afterData}]);const url=new URL('admin.html',window.location.href);url.searchParams.set('id',reportId);approvalURL=url.href;}}catch(error){console.warn('Local report copy could not be saved',error);}
+  try{if(window.YJManagement?.local){await window.YJManagement.local.put('points',[{id:reportId,_owned:true,latitude:position.latitude,longitude:position.longitude,accuracy_m:Math.round(position.accuracy),submitted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString(),name:'',address:position ? ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5)) : '',note:$('note').value.trim(),volunteer_team:$('volunteerTeam').value,photo_before_data:beforeData,photo_after_data:afterData}]);const url=new URL('admin.html',window.location.href);url.searchParams.set('id',reportId);approvalURL=url.href;}}catch(error){console.warn('Local report copy could not be saved',error);}
   if (supabaseReady) {
     try {
       status('위치를 임시 지도에 등록하고 있습니다…');
@@ -105,7 +113,7 @@ $('report').addEventListener('submit', async event => {
       let result = await client.from('temporary_reports').insert({
         id: reportId, latitude: position.latitude, longitude: position.longitude,
         accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash,
-        name: '', address: $('address').value.trim(), note: $('note').value.trim(),
+        name: '', address: position ? ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5)) : '', note: $('note').value.trim(),
         volunteer_team: $('volunteerTeam').value, photo_before_data:beforeData,photo_after_data:afterData
       });
       if (result.error) {
@@ -143,7 +151,7 @@ $('report').addEventListener('submit', async event => {
   data.append('위도', String(position.latitude)); data.append('경도', String(position.longitude));
   data.append('GPS 정확도(m)', String(position.accuracy));
   data.append('위치 확인 시각', new Date(position.timestamp).toISOString());
-  data.append('설치 주소', $('address').value.trim());
+  data.append('설치 위치 (GPS)', position ? ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5)) : '');
   data.append('Google 지도', $('map').href); data.append('현장 메모', $('note').value.trim());
   data.append('점검/등록 의용소방대', $('volunteerTeam').value || '선택 안 함');
   data.append('위치 및 전송 동의', '사용자가 명시적으로 동의함');
