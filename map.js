@@ -149,7 +149,8 @@
   document.getElementById('allView').onclick=()=>points.length>1?map.fitBounds(points,{padding:[32,32],maxZoom:16}):map.setView(station,13);
   try {
     const response=await fetch('locations.json',{cache:'no-cache'});if(!response.ok)throw new Error('load');
-    const data=await response.json();if(!Array.isArray(data))throw new Error('format');
+    let data=await response.json();if(!Array.isArray(data))throw new Error('format');
+    if(window.YJManagement?.local){try{const cached=await window.YJManagement.local.all('points');data=data.map(x=>({...x,...(cached.find(y=>y.id===x.id&&y._dirty)||{})}));await window.YJManagement.local.merge('points',data.map(x=>({...x,_static:true,approved_at:x.approved_at||'2000-01-01T00:00:00Z',expires_at:'infinity'})));}catch{}}
     let invalid=0;
     for(const point of data){
       if(!point || typeof point.latitude!=='number'||typeof point.longitude!=='number'||!Number.isFinite(point.latitude)||!Number.isFinite(point.longitude)||Math.abs(point.latitude)>90||Math.abs(point.longitude)>180){invalid++;continue;}
@@ -174,15 +175,17 @@
   const cfg=window.APP_CONFIG||{};
   if(/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(cfg.supabaseUrl||'') && cfg.supabaseAnonKey){
     try{
-      const {createClient}=await import('https://esm.sh/@supabase/supabase-js@2');
-      const client=createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
+      let client;
+      try{const {createClient}=await window.YJManagement.limited(import('https://esm.sh/@supabase/supabase-js@2'));client=createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);}catch{}
       let tempLayers=[],tempItems=[],firstLoad=true;
       const loadTemporary=async()=>{
-        let result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at,name,address,note,volunteer_team,photo_data').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
-        if(result.error && (result.error.code==='42703'||result.error.code==='PGRST204')){
-          result=await client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false});
+        let result={error:{code:'offline'}};
+        if(client)try{result=await window.YJManagement.limited(client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at,name,address,note,volunteer_team,photo_data,photo_before_data,photo_after_data').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false}));}catch{}
+        if(client && result.error && (result.error.code==='42703'||result.error.code==='PGRST204')){
+          try{result=await window.YJManagement.limited(client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false}));}catch{}
         }
-        if(result.error)throw result.error;
+        const offline=Boolean(result.error);
+        try{const local=window.YJManagement.local;if(!result.error)await local.merge('points',result.data||[]);const cached=await local.all('points');result={data:cached.filter(x=>!x._static&&!x.rejected_at&&(x.approved_at||!x.expires_at||x.expires_at==='infinity'||Date.parse(x.expires_at)>Date.now()))};}catch{if(result.error)throw result.error;}
         for(const item of tempLayers)map.removeLayer(item);
         for(const item of tempItems)item.remove();
         tempLayers=[];tempItems=[];
@@ -192,12 +195,13 @@
           const date=document.createElement('p');date.textContent=(point.approved_at?'승인 '+new Date(point.approved_at).toLocaleString('ko-KR'):'접수 '+new Date(point.submitted_at).toLocaleString('ko-KR')+' · 7일 후 만료')+' · GPS 오차 약 '+point.accuracy_m+'m';popup.append(date);
           const link=document.createElement('a');link.href='https://www.google.com/maps?q='+point.latitude+','+point.longitude;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Google 지도에서 보기 ↗';popup.append(link);
           if(!point.approved_at && window.YJManagement){
-            popup.replaceChildren();const M=window.YJManagement;popup.append(M.el('strong',point.address||'주소 미등록'),M.el('p','설치 의용소방대: '+(point.volunteer_team||'미등록')),M.el('p','설치 신청 중 · '+new Date(point.submitted_at).toLocaleString('ko-KR')));if(point.note)popup.append(M.el('p','상세 위치: '+point.note));M.photo(popup,point.photo_data);popup.append(link);
+            popup.replaceChildren();const M=window.YJManagement;popup.append(M.el('strong',point.address||'주소 미등록'),M.el('p','설치 의용소방대: '+(point.volunteer_team||'미등록')),M.el('p','설치 신청 중 · '+new Date(point.submitted_at).toLocaleString('ko-KR')));if(point.note)popup.append(M.el('p','상세 위치: '+point.note));M.installationPhotos(popup,point);popup.append(link);
           }
           let cancelEntries=[];
           try { cancelEntries=JSON.parse(localStorage.getItem('yjfireclimbing.cancelTokens.v1')||'[]'); } catch {}
           const cancelEntry=cancelEntries.find(entry=>entry.id===point.id && entry.expiresAt>Date.now());
-          if(cancelEntry && !point.approved_at){
+          if(!point.approved_at && (cancelEntry||point._owned)){const edit=document.createElement('button');edit.type='button';edit.className='button secondary full';edit.textContent='설치 전·후 사진 수정';edit.onclick=()=>window.YJManagement.editTemporaryPhotos(point,cancelEntry?.token,loadTemporary);popup.append(edit);}
+          if(client && cancelEntry && !point.approved_at){
             const cancelButton=document.createElement('button');cancelButton.type='button';cancelButton.className='point-cancel';cancelButton.textContent='이 요청 취소 · 지도에서 삭제';
             cancelButton.style.cssText='display:block;margin-top:10px;padding:8px 12px;border:1px solid #b83232;border-radius:8px;background:#fff5f5;color:#a22222;font:inherit;font-weight:700;cursor:pointer';
             cancelButton.addEventListener('click',async()=>{
@@ -208,6 +212,7 @@
               catch(error) { cancelled={error}; }
               if(cancelled.error||cancelled.data!==true){cancelButton.disabled=false;cancelButton.textContent='취소 기능 설정을 확인해 주세요';console.error('temporary report cancellation failed',cancelled.error);return;}
               try { localStorage.setItem('yjfireclimbing.cancelTokens.v1',JSON.stringify(cancelEntries.filter(entry=>entry.id!==point.id))); } catch {}
+              try{await window.YJManagement.local.put('points',[{...point,rejected_at:new Date().toISOString(),_dirty:true}]);}catch{}
               await loadTemporary();
               status.textContent='임시 위치 요청을 취소했습니다.';
             });
@@ -222,10 +227,10 @@
         const temporaryCount=(result.data||[]).filter(point=>!point.approved_at).length;
         const total=staticCount+(result.data||[]).length;document.getElementById('pointCount').textContent=String(total);document.getElementById('emptyPoints').hidden=total>0;
         if(firstLoad&&livePoints.length&&!requestedPointShown&&!userLocationSelected){map.fitBounds(points,{padding:[32,32],maxZoom:15});firstLoad=false;}
-        status.textContent='최근 접수 '+temporaryCount+'곳 · 영구 등록 '+permanentCount+'곳';
+        status.textContent='최근 접수 '+temporaryCount+'곳 · 영구 등록 '+permanentCount+'곳'+(offline?' · 이 기기에 저장된 자료':'');
       };
       await loadTemporary();
-      client.channel('temporary-map-locations').on('postgres_changes',{event:'*',schema:'public',table:'temporary_reports'},()=>loadTemporary()).subscribe();
+      if(client)client.channel('temporary-map-locations').on('postgres_changes',{event:'*',schema:'public',table:'temporary_reports'},()=>loadTemporary()).subscribe();
       window.setInterval(()=>loadTemporary().catch(error=>{status.textContent='최근 접수 위치를 새로고침하지 못했습니다.';console.error(error);}),60000);
     }catch(error){status.textContent='Supabase 임시 위치를 불러오지 못했습니다. GPS 접수는 계속 이메일로 받을 수 있습니다.';console.error('temporary location map failed',error);}
   } else {status.textContent='Supabase 연결 후 최근 접수 위치가 7일간 표시됩니다.';}
