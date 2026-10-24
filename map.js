@@ -1,5 +1,7 @@
 'use strict';
 (async () => {
+  const mode=new URLSearchParams(window.location.search).get('mode');
+  if(mode==='inspection'||mode==='report'){document.getElementById('mapTaskTitle').textContent=mode==='inspection'?'소화기 점검':'고장·이상 신고';const help=document.getElementById('mapTaskHelp');help.hidden=false;help.textContent=mode==='inspection'?'① 소화기 지점을 누르세요 → ② 점검하기 → ③ 현재 위치 확인 후 점검 기록':'① 소화기 지점을 누르세요 → ② 이상 신고하기 → ③ 문제를 적고 접수';}
   const locationSearch=()=>window.location.search;
   let requestedPointShown=false;
   const status = document.getElementById('mapStatus');
