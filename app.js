@@ -69,7 +69,7 @@ async function resolveGpsAddress(request,latitude,longitude){
   if(request!==locationRequest||!$('gpsConsent').checked||!position)return;
   position.address=address;target.textContent=address;
  }catch(error){
-  if(request===locationRequest&&$('gpsConsent').checked){target.textContent=error.message==='Kakao SDK 설정 오류'?'주소 조회 설정 필요 · Kakao Developers에 https://seunghoe119-art.github.io 를 JavaScript SDK 도메인으로 등록해 주세요.':'이 좌표에는 정확한 도로명 주소가 없습니다. 지도에서 위치를 확인해 주세요.';}
+  if(request===locationRequest&&$('gpsConsent').checked){target.textContent=error.message==='Kakao SDK 설정 오류'?'카카오맵 사용 설정을 켜야 주소를 조회할 수 있습니다. Kakao Developers의 [카카오맵] → [사용 설정]을 ON으로 바꿔 주세요.':'이 좌표에는 정확한 도로명 주소가 없습니다. 지도에서 위치를 확인해 주세요.';}
  }
 }
 function showGpsPreview(){
