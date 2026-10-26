@@ -40,8 +40,8 @@ function loadKakaoGeocoder(){
   const script=document.createElement('script');
   script.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(config.kakaoJavascriptKey)+'&libraries=services&autoload=false';
   script.async=true;
-  script.onload=()=>{if(window.kakao?.maps?.load)window.kakao.maps.load(ready);else reject(new Error('Kakao 지도 SDK 초기화에 실패했습니다.'));};
-  script.onerror=()=>reject(new Error('Kakao 지도 SDK를 불러오지 못했습니다. 도메인 허용 설정을 확인해 주세요.'));
+  script.onload=()=>{if(window.kakao?.maps?.load)window.kakao.maps.load(ready);else reject(new Error('Kakao SDK 설정 오류'));};
+  script.onerror=()=>reject(new Error('Kakao SDK 설정 오류'));
   document.head.append(script);
  });
  return kakaoGeocoderPromise;
@@ -69,7 +69,7 @@ async function resolveGpsAddress(request,latitude,longitude){
   if(request!==locationRequest||!$('gpsConsent').checked||!position)return;
   position.address=address;target.textContent=address;
  }catch(error){
-  if(request===locationRequest&&$('gpsConsent').checked){target.textContent='정확한 도로명 주소를 확인하지 못했습니다. 지도 위치를 확인해 주세요.';}
+  if(request===locationRequest&&$('gpsConsent').checked){target.textContent=error.message==='Kakao SDK 설정 오류'?'주소 조회 설정 필요 · Kakao Developers에 https://seunghoe119-art.github.io 를 JavaScript SDK 도메인으로 등록해 주세요.':'이 좌표에는 정확한 도로명 주소가 없습니다. 지도에서 위치를 확인해 주세요.';}
  }
 }
 function showGpsPreview(){
