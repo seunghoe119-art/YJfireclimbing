@@ -60,8 +60,13 @@ async function resolveGpsAddress(request,latitude,longitude){
      const roadName=road?.road_name?.trim();
      const mainNo=road?.main_building_no?.trim();
      const subNo=road?.sub_building_no?.trim();
-     if(!roadName||!mainNo){reject(new Error('No precise road address'));return;}
-     resolve(roadName+' '+mainNo+(subNo&&subNo!=='0'?'-'+subNo:''));
+     if(roadName&&mainNo){resolve(roadName+' '+mainNo+(subNo&&subNo!=='0'?'-'+subNo:''));return;}
+     const parcel=result[0].address;
+     const dong=parcel?.region_3depth_name?.trim().split(/\\s+/).pop();
+     const parcelMain=parcel?.main_address_no?.trim();
+     const parcelSub=parcel?.sub_address_no?.trim();
+     if(dong&&parcelMain){resolve(dong+' '+parcelMain+(parcelSub&&parcelSub!=='0'?'-'+parcelSub:'')+' · 지번 주소');return;}
+     reject(new Error('No address'));
     });
    });
    reverseGeocodeCache.set(key,address);
@@ -255,7 +260,6 @@ $('backToTasks').addEventListener('click',()=>{history.replaceState(null,'',loca
 showInstall(location.hash==='#install'||completed);
 
 if(new URLSearchParams(location.search).get('kakaoTest')==='1'){
- $('gpsConsent').checked=true;
- const target=$('resolvedAddress');target.hidden=false;target.textContent='Kakao 응답 확인 중…';
- void loadKakaoGeocoder().then(geocoder=>new Promise(resolve=>geocoder.coord2Address(126.41570,37.48640,(items,status)=>resolve({status:String(status),ok:String(window.kakao.maps.services.Status.OK),items:(items||[]).map(item=>({road:item.road_address||null,address:item.address?.address_name||null}))})))).then(result=>{target.textContent=JSON.stringify(result);}).catch(error=>{target.textContent='SDK error: '+error.message;});
+ $('gpsConsent').checked=true;position={latitude:37.48640,longitude:126.41570,accuracy:1,timestamp:Date.now()};
+ void resolveGpsAddress(++locationRequest,position.latitude,position.longitude);
 }
