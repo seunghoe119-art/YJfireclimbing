@@ -30,28 +30,46 @@ function getSupabase() {
 const compressedPhoto=file=>window.YJManagement.compress(file);
 let gpsPreviewMap=null,gpsPreviewMarker=null;
 const reverseGeocodeCache=new Map();
-let lastReverseGeocodeAt=0;
+let kakaoGeocoderPromise;
+function loadKakaoGeocoder(){
+ if(kakaoGeocoderPromise)return kakaoGeocoderPromise;
+ kakaoGeocoderPromise=new Promise((resolve,reject)=>{
+  if(!config.kakaoJavascriptKey){reject(new Error('Kakao JavaScript 키가 설정되지 않았습니다.'));return;}
+  const ready=()=>window.kakao?.maps?.services?.Geocoder?resolve(new window.kakao.maps.services.Geocoder()):reject(new Error('Kakao 주소 조회 서비스를 불러오지 못했습니다.'));
+  if(window.kakao?.maps?.services?.Geocoder){ready();return;}
+  const script=document.createElement('script');
+  script.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(config.kakaoJavascriptKey)+'&libraries=services&autoload=false';
+  script.async=true;
+  script.onload=()=>{if(window.kakao?.maps?.load)window.kakao.maps.load(ready);else reject(new Error('Kakao 지도 SDK 초기화에 실패했습니다.'));};
+  script.onerror=()=>reject(new Error('Kakao 지도 SDK를 불러오지 못했습니다. 도메인 허용 설정을 확인해 주세요.'));
+  document.head.append(script);
+ });
+ return kakaoGeocoderPromise;
+}
 async function resolveGpsAddress(request,latitude,longitude){
  const target=$('resolvedAddress');target.hidden=false;target.textContent='주소 확인 중…';
  const key=latitude.toFixed(5)+','+longitude.toFixed(5);
  try{
   let address=reverseGeocodeCache.get(key);
   if(!address){
-   const delay=Math.max(0,1100-(Date.now()-lastReverseGeocodeAt));
-   if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
-   if(request!==locationRequest)return;
-   lastReverseGeocodeAt=Date.now();
-   const url=new URL('https://nominatim.openstreetmap.org/reverse');
-   url.searchParams.set('format','jsonv2');url.searchParams.set('lat',String(latitude));url.searchParams.set('lon',String(longitude));url.searchParams.set('zoom','18');url.searchParams.set('addressdetails','1');url.searchParams.set('accept-language','ko');
-   const response=await fetch(url,{headers:{Accept:'application/json'},credentials:'omit'});
-   if(!response.ok)throw new Error('Address lookup failed');
-   const result=await response.json();const parts=result.address||{};const road=parts.road||parts.pedestrian||parts.residential||parts.path||'';const number=parts.house_number||'';address=road&&number?`${road} ${number}`:'';if(!address)throw new Error('No precise road address');
+   const geocoder=await loadKakaoGeocoder();
+   address=await new Promise((resolve,reject)=>{
+    geocoder.coord2Address(longitude,latitude,(result,status)=>{
+     if(status!==window.kakao.maps.services.Status.OK||!result?.length){reject(new Error('Address lookup failed'));return;}
+     const road=result[0].road_address;
+     const roadName=road?.road_name?.trim();
+     const mainNo=road?.main_building_no?.trim();
+     const subNo=road?.sub_building_no?.trim();
+     if(!roadName||!mainNo){reject(new Error('No precise road address'));return;}
+     resolve(roadName+' '+mainNo+(subNo&&subNo!=='0'?'-'+subNo:''));
+    });
+   });
    reverseGeocodeCache.set(key,address);
   }
   if(request!==locationRequest||!$('gpsConsent').checked||!position)return;
   position.address=address;target.textContent=address;
  }catch(error){
-  if(request===locationRequest&&$('gpsConsent').checked){target.textContent='정확한 도로명 주소를 확인하지 못했습니다.';}
+  if(request===locationRequest&&$('gpsConsent').checked){target.textContent='정확한 도로명 주소를 확인하지 못했습니다. 지도 위치를 확인해 주세요.';}
  }
 }
 function showGpsPreview(){
