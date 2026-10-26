@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kakao geocoder diagnostic</title>
+<style>body{font:20px system-ui,sans-serif;padding:24px;line-height:1.5;white-space:pre-wrap}</style>
+<h1>Kakao 좌표 주소 조회 진단</h1><pre id="result">조회 준비 중…</pre>
+<script>
+const result=document.getElementById('result');
+const s=document.createElement('script');
+s.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey=59616f71f195be28c235f36b1bd0a04a&libraries=services&autoload=false';
+s.onload=()=>{if(!window.kakao?.maps?.load){result.textContent='SDK script loaded, but Kakao maps object is missing.';return;}window.kakao.maps.load(()=>{const g=new kakao.maps.services.Geocoder();g.coord2Address(126.41570,37.48640,(items,status)=>{result.textContent=JSON.stringify({status,ok:kakao.maps.services.Status.OK,items:(items||[]).map(x=>({road:x.road_address&&{road_name:x.road_address.road_name,main_building_no:x.road_address.main_building_no,sub_building_no:x.road_address.sub_building_no},address:x.address&&x.address.address_name}))},null,2);});});};
+s.onerror=()=>{result.textContent='SDK failed to load.';};
+document.head.append(s);
+</script>
