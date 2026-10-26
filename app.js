@@ -259,7 +259,3 @@ $('startInstall').addEventListener('click',()=>{history.replaceState(null,'','#i
 $('backToTasks').addEventListener('click',()=>{history.replaceState(null,'',location.pathname);showInstall(false);$('taskMenu').scrollIntoView({behavior:'smooth'});});
 showInstall(location.hash==='#install'||completed);
 
-if(new URLSearchParams(location.search).get('kakaoTest')==='1'){
- $('gpsConsent').checked=true;position={latitude:37.48640,longitude:126.41570,accuracy:1,timestamp:Date.now()};
- void resolveGpsAddress(++locationRequest,position.latitude,position.longitude);
-}
