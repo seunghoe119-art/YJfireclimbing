@@ -45,18 +45,18 @@ async function resolveGpsAddress(request,latitude,longitude){
    url.searchParams.set('format','jsonv2');url.searchParams.set('lat',String(latitude));url.searchParams.set('lon',String(longitude));url.searchParams.set('zoom','18');url.searchParams.set('addressdetails','1');url.searchParams.set('accept-language','ko');
    const response=await fetch(url,{headers:{Accept:'application/json'},credentials:'omit'});
    if(!response.ok)throw new Error('Address lookup failed');
-   const result=await response.json();address=String(result.display_name||'').trim();if(!address)throw new Error('No address');
+   const result=await response.json();const parts=result.address||{};const road=parts.road||parts.pedestrian||parts.residential||parts.path||'';const number=parts.house_number||'';address=road&&number?`${road} ${number}`:'';if(!address)throw new Error('No precise road address');
    reverseGeocodeCache.set(key,address);
   }
   if(request!==locationRequest||!$('gpsConsent').checked||!position)return;
   position.address=address;target.textContent=address;
  }catch(error){
-  if(request===locationRequest&&$('gpsConsent').checked){target.textContent='주소를 자동으로 확인하지 못했습니다.';}
+  if(request===locationRequest&&$('gpsConsent').checked){target.textContent='정확한 도로명 주소를 확인하지 못했습니다.';}
  }
 }
 function showGpsPreview(){
  const holder=$('gpsPreview');holder.hidden=false;
- $('address').textContent='위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5);$('address').hidden=false;
+ $('address').textContent=`위도: ${position.latitude.toFixed(5)}\n경도: ${position.longitude.toFixed(5)}`;$('address').hidden=false;
  if(!window.L){holder.textContent='아래 Google 지도 링크에서 설치 위치를 확인해 주세요.';return;}
  if(!gpsPreviewMap){gpsPreviewMap=L.map(holder,{scrollWheelZoom:false}).setView([position.latitude,position.longitude],17);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(gpsPreviewMap);gpsPreviewMarker=L.circleMarker([position.latitude,position.longitude],{radius:9,color:'#fff',weight:3,fillColor:'#1683c4',fillOpacity:1,interactive:false}).addTo(gpsPreviewMap);}
  else{gpsPreviewMap.setView([position.latitude,position.longitude],17);gpsPreviewMarker.setLatLng([position.latitude,position.longitude]);}
