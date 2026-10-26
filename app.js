@@ -29,9 +29,34 @@ function getSupabase() {
 }
 const compressedPhoto=file=>window.YJManagement.compress(file);
 let gpsPreviewMap=null,gpsPreviewMarker=null;
+const reverseGeocodeCache=new Map();
+let lastReverseGeocodeAt=0;
+async function resolveGpsAddress(request,latitude,longitude){
+ const target=$('resolvedAddress');target.hidden=false;target.textContent='주소 확인 중…';
+ const key=latitude.toFixed(5)+','+longitude.toFixed(5);
+ try{
+  let address=reverseGeocodeCache.get(key);
+  if(!address){
+   const delay=Math.max(0,1100-(Date.now()-lastReverseGeocodeAt));
+   if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+   if(request!==locationRequest)return;
+   lastReverseGeocodeAt=Date.now();
+   const url=new URL('https://nominatim.openstreetmap.org/reverse');
+   url.searchParams.set('format','jsonv2');url.searchParams.set('lat',String(latitude));url.searchParams.set('lon',String(longitude));url.searchParams.set('zoom','18');url.searchParams.set('addressdetails','1');url.searchParams.set('accept-language','ko');
+   const response=await fetch(url,{headers:{Accept:'application/json'},credentials:'omit'});
+   if(!response.ok)throw new Error('Address lookup failed');
+   const result=await response.json();address=String(result.display_name||'').trim();if(!address)throw new Error('No address');
+   reverseGeocodeCache.set(key,address);
+  }
+  if(request!==locationRequest||!$('gpsConsent').checked||!position)return;
+  position.address=address;target.textContent=address;
+ }catch(error){
+  if(request===locationRequest&&$('gpsConsent').checked){target.textContent='주소를 자동으로 확인하지 못했습니다.';}
+ }
+}
 function showGpsPreview(){
  const holder=$('gpsPreview');holder.hidden=false;
- $('address').textContent='위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5);
+ $('address').textContent='위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5);$('address').hidden=false;
  if(!window.L){holder.textContent='아래 Google 지도 링크에서 설치 위치를 확인해 주세요.';return;}
  if(!gpsPreviewMap){gpsPreviewMap=L.map(holder,{scrollWheelZoom:false}).setView([position.latitude,position.longitude],17);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(gpsPreviewMap);gpsPreviewMarker=L.circleMarker([position.latitude,position.longitude],{radius:9,color:'#fff',weight:3,fillColor:'#1683c4',fillOpacity:1,interactive:false}).addTo(gpsPreviewMap);}
  else{gpsPreviewMap.setView([position.latitude,position.longitude],17);gpsPreviewMarker.setLatLng([position.latitude,position.longitude]);}
@@ -71,7 +96,7 @@ async function choose(event) {
 }
 $('camera').addEventListener('change', choose); $('album').addEventListener('change', choose);$('cameraAfter').addEventListener('change',choose);$('albumAfter').addEventListener('change',choose);
 $('gpsConsent').addEventListener('change', () => {
-  if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('gpsPreview').hidden=true;$('address').textContent='현재 위치를 가져오면 위도·경도가 자동으로 입력됩니다.'; $('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = ''; }
+  if (!$('gpsConsent').checked) { ++locationRequest; locating = false; position = null; $('gpsPreview').hidden=true;$('address').hidden=true;$('resolvedAddress').hidden=true;$('map').hidden = true; $('map').removeAttribute('href'); $('locationInfo').textContent = ''; }
    update();
 });
 
@@ -81,17 +106,17 @@ $('locate').addEventListener('click', () => {
   if (!$('gpsConsent').checked || busy || locating) return;
   if (!window.isSecureContext || !navigator.geolocation) { status('위치 기능을 사용할 수 없습니다. HTTPS 주소를 Safari 또는 Chrome에서 열어 주세요.', 'error'); return; }
   const request = ++locationRequest;
-  position = null;$('gpsPreview').hidden=true;$('address').textContent='위치 확인 중…'; locating = true; $('map').hidden = true; 
+  position = null;$('gpsPreview').hidden=true;$('address').hidden=true;$('resolvedAddress').hidden=true; locating = true; $('map').hidden = true; 
   $('locationInfo').textContent = '현재 위치를 확인하고 있습니다…'; status(''); update();
   navigator.geolocation.getCurrentPosition(result => {
     if (request !== locationRequest || !$('gpsConsent').checked) return;
     locating = false;
     position = { latitude: Number(result.coords.latitude.toFixed(5)), longitude: Number(result.coords.longitude.toFixed(5)), accuracy: result.coords.accuracy, timestamp: result.timestamp };
     $('locationInfo').textContent = `위치 확인 완료 · 위치 오차 약 ${Math.round(position.accuracy)}m`;
-    $('map').href = `https://www.google.com/maps?q=${position.latitude},${position.longitude}`; $('map').hidden = false;showGpsPreview(); update();
+    $('map').href = `https://www.google.com/maps?q=${position.latitude},${position.longitude}`; $('map').hidden = false;showGpsPreview();void resolveGpsAddress(request,position.latitude,position.longitude); update();
   }, error => {
     if (request !== locationRequest) return;
-    locating = false; position = null;$('address').textContent='위치를 확인하지 못했습니다. 다시 시도해 주세요.';
+    locating = false; position = null;$('address').hidden=true;$('resolvedAddress').hidden=true;
     $('locationInfo').textContent = ({1:'위치 권한이 거부되었습니다. 브라우저 설정에서 허용한 뒤 다시 시도해 주세요.',2:'현재 위치를 확인할 수 없습니다. 실외나 신호가 잘 잡히는 곳에서 다시 시도해 주세요.',3:'위치 확인 시간이 초과되었습니다. 다시 시도해 주세요.'})[error.code] || '위치 확인에 실패했습니다. 다시 시도해 주세요.';
     update();
   }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
@@ -106,7 +131,7 @@ $('report').addEventListener('submit', async event => {
   let mapSaved = false;
   let cancelTokenSaved = false;
   let approvalURL = '';
-  try{if(window.YJManagement?.local){await window.YJManagement.local.put('points',[{id:reportId,_owned:true,latitude:position.latitude,longitude:position.longitude,accuracy_m:Math.round(position.accuracy),submitted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString(),name:'',address:position ? ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5)) : '',note:$('note').value.trim(),volunteer_team:$('volunteerTeam').value,photo_before_data:beforeData,photo_after_data:afterData}]);const url=new URL('admin.html',window.location.href);url.searchParams.set('id',reportId);approvalURL=url.href;}}catch(error){console.warn('Local report copy could not be saved',error);}
+  try{if(window.YJManagement?.local){await window.YJManagement.local.put('points',[{id:reportId,_owned:true,latitude:position.latitude,longitude:position.longitude,accuracy_m:Math.round(position.accuracy),submitted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString(),name:'',address:position ? (position.address || ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5))) : '',note:$('note').value.trim(),volunteer_team:$('volunteerTeam').value,photo_before_data:beforeData,photo_after_data:afterData}]);const url=new URL('admin.html',window.location.href);url.searchParams.set('id',reportId);approvalURL=url.href;}}catch(error){console.warn('Local report copy could not be saved',error);}
   if (supabaseReady) {
     try {
       status('위치를 임시 지도에 등록하고 있습니다…');
@@ -117,7 +142,7 @@ $('report').addEventListener('submit', async event => {
       let result = await client.from('temporary_reports').insert({
         id: reportId, latitude: position.latitude, longitude: position.longitude,
         accuracy_m: Math.round(position.accuracy), cancel_token_hash: cancelTokenHash,
-        name: '', address: position ? ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5)) : '', note: $('note').value.trim(),
+        name: '', address: position ? (position.address || ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5))) : '', note: $('note').value.trim(),
         volunteer_team: $('volunteerTeam').value, photo_before_data:beforeData,photo_after_data:afterData
       });
       if (result.error) {
@@ -156,6 +181,7 @@ $('report').addEventListener('submit', async event => {
   data.append('GPS 정확도(m)', String(position.accuracy));
   data.append('위치 확인 시각', new Date(position.timestamp).toISOString());
   data.append('설치 위치 (GPS)', position ? ('위도 '+position.latitude.toFixed(5)+' · 경도 '+position.longitude.toFixed(5)) : '');
+  data.append('GPS 자동 주소', position?.address || '주소 조회 중이거나 조회 실패');
   data.append('Google 지도', $('map').href); data.append('현장 메모', $('note').value.trim());
   data.append('점검/등록 의용소방대', $('volunteerTeam').value || '선택 안 함');
   data.append('위치 및 전송 동의', '사용자가 명시적으로 동의함');
