@@ -33,7 +33,7 @@ begin
  if p_action not in ('save','approve','reject') then raise exception 'Invalid action'; end if;
  if length(coalesce(p_name,''))>160 or length(coalesce(p_address,''))>500 or length(coalesce(p_note,''))>1000 or length(coalesce(p_team,''))>80 then raise exception 'Field too long'; end if;
  update public.temporary_reports
- set name=nullif(trim(coalesce(p_name,'')),''),
+ set name=coalesce(nullif(trim(coalesce(p_name,'')),''),name,'소화기'),
      address=nullif(trim(coalesce(p_address,'')),''),
      note=nullif(trim(coalesce(p_note,'')),''),
      volunteer_team=nullif(trim(coalesce(p_team,'')),''),
