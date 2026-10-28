@@ -25,5 +25,23 @@ begin
  return found;
 end;$$;
 revoke all on function public.get_extinguisher_issue_states(),public.frontend_admin_list_issues(text,text),public.frontend_admin_resolve_issue(text,text,uuid,text) from public;
-grant execute on function public.get_extinguisher_issue_states(),public.frontend_admin_list_issues(text,text),public.frontend_admin_resolve_issue(text,text,uuid,text) to anon,authenticated;
+create or replace function public.frontend_admin_update_report(
+ p_username text,p_password text,p_id uuid,p_name text,p_address text,p_note text,p_team text,p_action text
+) returns boolean language plpgsql security definer set search_path='' as $
+begin
+ if not site_private.frontend_issue_admin_ok(p_username,p_password) then raise exception 'Administrator credentials required' using errcode='42501'; end if;
+ if p_action not in ('save','approve','reject') then raise exception 'Invalid action'; end if;
+ if length(coalesce(p_name,''))>160 or length(coalesce(p_address,''))>500 or length(coalesce(p_note,''))>1000 or length(coalesce(p_team,''))>80 then raise exception 'Field too long'; end if;
+ update public.temporary_reports
+ set name=nullif(trim(coalesce(p_name,'')),''),
+     address=nullif(trim(coalesce(p_address,'')),''),
+     note=nullif(trim(coalesce(p_note,'')),''),
+     volunteer_team=nullif(trim(coalesce(p_team,'')),''),
+     approved_at=case when p_action='approve' then coalesce(approved_at,now()) else approved_at end,
+     expires_at=case when p_action='approve' then 'infinity'::timestamptz when p_action='reject' then now() else expires_at end
+ where id=p_id and (expires_at>now() or p_action='save');
+ return found;
+end;$;
+revoke all on function public.frontend_admin_update_report(text,text,uuid,text,text,text,text,text) from public;
+grant execute on function public.get_extinguisher_issue_states(),public.frontend_admin_list_issues(text,text),public.frontend_admin_resolve_issue(text,text,uuid,text),public.frontend_admin_update_report(text,text,uuid,text,text,text,text,text) to anon,authenticated;
 commit;
