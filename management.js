@@ -32,7 +32,7 @@ window.YJManagement=(()=>{
   }finally{URL.revokeObjectURL(url);}
  }
  function dataFile(data,name){const raw=atob(data.split(',')[1]);return new File([Uint8Array.from(raw,x=>x.charCodeAt(0))],name,{type:'image/jpeg'});}
- function installationPhotos(parent,point){if(point.photo_before_data){parent.append(el('p','설치 전 사진'));photo(parent,point.photo_before_data);}const after=point.photo_after_data||point.photo_data||point.photo;if(after){parent.append(el('p','설치 후 사진'));photo(parent,after);}}
+ function installationPhotos(parent,point){const before=point.photo_before_data,after=point.photo_after_data||point.photo_data||point.photo;if(!before&&!after)return;const grid=el('div');grid.className='installation-photos';for(const [label,source]of [['설치 전',before],['설치 후',after]])if(source){const stage=el('div');stage.className='photo-stage';stage.append(el('strong',label));photo(stage,source);grid.append(stage);}parent.append(grid);}
  function teamSelect(required=false){const s=el('select');s.required=required;for(const t of ['',...teams]){const o=el('option',t||'의용소방대 선택'+(required?'':' (선택사항)'));o.value=t;s.append(o);}return s;}
  function photo(parent,source){if(!source)return;let safe=false;try{const u=new URL(source,location.href);safe=/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(source)||u.origin===location.origin;}catch{}if(!safe)return;
  const b=el('button');b.type='button';b.className='photo-thumb';const img=el('img');img.src=source;img.alt='설치 사진 확대';img.loading='lazy';b.append(img);b.onclick=()=>{const d=dialog('설치 사진');const full=el('img');full.src=source;full.alt='소화기 설치 위치 사진';full.style.cssText='max-width:100%;max-height:75vh;object-fit:contain';d.append(full);d.showModal();};parent.append(b);}
