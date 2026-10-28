@@ -196,17 +196,18 @@
           try{result=await window.YJManagement.limited(client.from('temporary_reports').select('id,latitude,longitude,accuracy_m,submitted_at,expires_at,approved_at').gt('expires_at',new Date().toISOString()).order('submitted_at',{ascending:false}));}catch{}
         }
         const offline=Boolean(result.error);
-        try{const local=window.YJManagement.local;if(!result.error)await local.merge('points',result.data||[]);const cached=await local.all('points');result={data:cached.filter(x=>!x._static&&!x.rejected_at&&(x.approved_at||!x.expires_at||x.expires_at==='infinity'||Date.parse(x.expires_at)>Date.now()))};}catch{if(result.error)throw result.error;}
+        try{const local=window.YJManagement.local;if(!result.error){const remoteRows=result.data||[];await local.merge('points',remoteRows.map(x=>({...x,_server_record:true,_server_approved_at:x.approved_at||null})));const cachedRows=await local.all('points'),serverById=new Map(remoteRows.map(x=>[String(x.id),x]));await local.put('points',cachedRows.map(x=>{const remote=serverById.get(String(x.id));return remote?{...x,_server_record:true,_server_approved_at:remote.approved_at||null}:x;}));}const cached=await local.all('points');result={data:cached.filter(x=>{const approved=x._server_record?x._server_approved_at:x.approved_at;return !x._static&&!x.rejected_at&&(approved||!x.expires_at||x.expires_at==='infinity'||Date.parse(x.expires_at)>Date.now());})};}catch{if(result.error)throw result.error;}
         for(const item of tempLayers)map.removeLayer(item);
         for(const item of tempItems)item.remove();
         tempLayers=[];tempItems=[];
         for(const point of result.data||[]){
+          if(point._server_record)point.approved_at=point._server_approved_at||null;
           const location=[point.latitude,point.longitude];
           const popup=document.createElement('div');const title=document.createElement('strong');title.textContent=point.approved_at?'담당자 승인 · 영구 등록 지점':'최근 접수 위치 · 7일 임시 표시';popup.append(title);
           const date=document.createElement('p');date.textContent=(point.approved_at?'승인 '+new Date(point.approved_at).toLocaleString('ko-KR'):'접수 '+new Date(point.submitted_at).toLocaleString('ko-KR')+' · 7일 후 만료')+' · GPS 오차 약 '+point.accuracy_m+'m';popup.append(date);
           const link=document.createElement('a');link.href='https://www.google.com/maps?q='+point.latitude+','+point.longitude;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Google 지도에서 보기 ↗';popup.append(link);
-          if(!point.approved_at && window.YJManagement){
-            popup.replaceChildren();const M=window.YJManagement;popup.append(M.el('strong',M.locationName(point)),M.el('p','설치 의용소방대: '+(point.volunteer_team||'미등록')),M.el('p','설치 신청 중 · '+new Date(point.submitted_at).toLocaleString('ko-KR')));if(point.note)popup.append(M.el('p','상세 위치: '+point.note));M.installationPhotos(popup,point);popup.append(link);
+          if(window.YJManagement){
+            popup.replaceChildren();popup.className='extinguisher-popup temporary-point-popup';const M=window.YJManagement;const head=document.createElement('div');head.className='temporary-popup-head';head.append(M.el('strong',M.locationName(point)));const badge=M.el('span',point.approved_at?'영구 등록':'승인 대기 · 7일 임시');badge.className='temporary-popup-badge '+(point.approved_at?'is-approved':'');head.append(badge);popup.append(head);const details=document.createElement('div');details.className='temporary-popup-details';details.append(M.el('p','설치 대대 '+(point.volunteer_team||'미선택')),M.el('p',(point.approved_at?'승인 ':'접수 ')+new Date(point.approved_at||point.submitted_at).toLocaleString('ko-KR')));popup.append(details);if(point.note){const note=M.el('p','상세 위치 · '+point.note);note.className='temporary-popup-note';popup.append(note);}M.installationPhotos(popup,point);link.className='temporary-popup-map-link';link.textContent='지도에서 위치 확인 ↗';popup.append(link);
           }
           let cancelEntries=[];
           try { cancelEntries=JSON.parse(localStorage.getItem('yjfireclimbing.cancelTokens.v1')||'[]'); } catch {}
@@ -230,7 +231,7 @@
             popup.append(cancelButton);
           }
           if(point.approved_at && window.YJManagement) window.YJManagement.decorate(popup,point);
-          const marker=L.circleMarker(location,{radius:point.approved_at?10:9,color:'#fff',weight:3,fillColor:point.approved_at?'#d92536':'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup);trackIssueMarker(point.id,marker);tempLayers.push(marker);
+          const marker=L.circleMarker(location,{radius:point.approved_at?10:9,color:'#fff',weight:3,fillColor:point.approved_at?'#d92536':'#1683c4',fillOpacity:1}).addTo(map).bindPopup(popup,{maxWidth:290,maxHeight:Math.round(window.innerHeight*.55)});trackIssueMarker(point.id,marker);tempLayers.push(marker);
           const button=document.createElement('button');button.className='point-item';button.type='button';button.textContent=window.YJManagement.locationName(point);const small=document.createElement('small');small.textContent='설치 의용소방대: '+(point.volunteer_team||'미등록')+(point.approved_at?'':' · 신청 중');button.append(small);button.onclick=()=>{map.setView(location,17);marker.openPopup();document.getElementById('installationMap').scrollIntoView({behavior:'smooth',block:'center'});};document.getElementById('pointList').append(button);tempItems.push(button);if(!requestedPointShown && new URLSearchParams(locationSearch()).get('point')===point.id){map.setView(location,17);marker.openPopup();requestedPointShown=true;}
         }
         const livePoints=(result.data||[]).map(point=>[point.latitude,point.longitude]);points.splice(0,points.length,...permanentPoints,...livePoints);
