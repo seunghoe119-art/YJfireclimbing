@@ -66,7 +66,8 @@
 ];
   const station = [offices[0].latitude,offices[0].longitude];
   const map = L.map('installationMap').setView(station,13);
-  const tile = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+  map.attributionControl.setPrefix('Leaflet');
+  const tile = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   tile.on('tileerror',()=>{status.textContent='지도 배경을 불러오지 못했습니다. 연결 상태를 확인해 주세요. 설치 목록은 아래에서 볼 수 있습니다.';});
   const officePoints = [];
   for (const office of offices) {
@@ -75,7 +76,6 @@
     const title = document.createElement('strong'); title.textContent = office.name; popup.append(title);
     const address = document.createElement('p'); address.textContent = office.address; popup.append(address);
     if (office.name === '영종소방서') { const info = document.createElement('p'); info.textContent='공항119안전센터와 같은 주소'; popup.append(info); }
-    const link = document.createElement('a'); link.href = office.source; link.target='_blank'; link.rel='noopener noreferrer'; link.textContent='공식 주소 안내 ↗'; popup.append(link);
     const icon = L.divIcon({className:'fire-marker',html:'<span>119</span>',iconSize:[38,42],iconAnchor:[19,42],popupAnchor:[0,-42]});
     const marker = L.marker(coordinate,{icon,title:office.name,alt:office.name,bubblingMouseEvents:false}).addTo(map).bindPopup(popup).bindTooltip(office.name,{direction:'top',offset:[0,-38]});
     const button=document.createElement('button');button.type='button';button.className='point-item';button.textContent='119 · '+office.name;

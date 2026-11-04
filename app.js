@@ -81,7 +81,7 @@ function showGpsPreview(){
  const holder=$('gpsPreview');holder.hidden=false;
  $('address').textContent=`위도: ${position.latitude.toFixed(5)}\n경도: ${position.longitude.toFixed(5)}`;$('address').hidden=false;
  if(!window.L){holder.textContent='아래 Google 지도 링크에서 설치 위치를 확인해 주세요.';return;}
- if(!gpsPreviewMap){gpsPreviewMap=L.map(holder,{scrollWheelZoom:false}).setView([position.latitude,position.longitude],17);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(gpsPreviewMap);gpsPreviewMarker=L.circleMarker([position.latitude,position.longitude],{radius:9,color:'#fff',weight:3,fillColor:'#1683c4',fillOpacity:1,interactive:false}).addTo(gpsPreviewMap);}
+ if(!gpsPreviewMap){gpsPreviewMap=L.map(holder,{scrollWheelZoom:false}).setView([position.latitude,position.longitude],17);gpsPreviewMap.attributionControl.setPrefix('Leaflet');L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(gpsPreviewMap);gpsPreviewMarker=L.circleMarker([position.latitude,position.longitude],{radius:9,color:'#fff',weight:3,fillColor:'#1683c4',fillOpacity:1,interactive:false}).addTo(gpsPreviewMap);}
  else{gpsPreviewMap.setView([position.latitude,position.longitude],17);gpsPreviewMarker.setLatLng([position.latitude,position.longitude]);}
  gpsPreviewMap.invalidateSize();
 }
