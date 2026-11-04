@@ -18,3 +18,24 @@
 
 /* Compact, scan-first popup for temporary installation requests on phones. */
 .temporary-point-popup{width:min(270px,calc(100vw - 76px));min-width:0;max-width:270px;max-height:55vh;overflow:auto;font-size:14px;line-height:1.35}.temporary-popup-head{display:flex;align-items:flex-start;gap:7px;justify-content:space-between;padding:0 0 8px;border-bottom:1px solid #e4edf6}.temporary-popup-head strong{font-size:15px;line-height:1.35;overflow-wrap:anywhere}.temporary-popup-badge{flex:none;padding:4px 7px;border-radius:999px;background:#fff3db;color:#8a5200;font-size:10px;font-weight:800}.temporary-popup-badge.is-approved{background:#e8f5ec;color:#24743d}.temporary-popup-details{display:grid;grid-template-columns:1fr 1fr;gap:4px 9px;padding:7px 0}.temporary-popup-details p,.temporary-popup-note{margin:0!important;font-size:12px;overflow-wrap:anywhere}.temporary-popup-note{padding:6px 8px;border-radius:7px;background:#f3f7fb;color:#334f69}.extinguisher-popup .installation-photos,.temporary-point-popup .installation-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.photo-stage{min-width:0}.photo-stage>strong{display:block;margin-bottom:4px;color:#64788c;font-size:11px}.temporary-point-popup .photo-thumb{margin:0;width:100%}.temporary-point-popup .photo-thumb img{display:block;width:100%;height:78px;max-width:none;max-height:none;object-fit:cover;border-radius:8px}.temporary-popup-map-link{display:inline-block;margin-top:8px;font-size:12px;font-weight:700}.leaflet-popup-content:has(.temporary-point-popup){width:auto!important;margin:10px 12px}.temporary-point-popup .point-cancel,.temporary-point-popup .button{font-size:12px!important;padding:7px!important;margin:6px 0!important}@media(max-width:480px){.temporary-point-popup{width:min(260px,calc(100vw - 82px));font-size:13px}.temporary-popup-head strong{font-size:14px}.temporary-point-popup .photo-thumb img{height:70px}}
+
+/* Pastel information blocks keep the primary actions visible on opening. */
+.extinguisher-popup{min-width:0;width:min(290px,calc(100vw - 88px));max-width:290px;max-height:60vh;color:#243b53;line-height:1.5;box-sizing:border-box}
+.extinguisher-popup .popup-title{display:block;padding:2px 0 12px;font-size:18px;line-height:1.4;overflow-wrap:anywhere}
+.extinguisher-popup .popup-info-block{padding:12px;border:1px solid #dce7ef;border-radius:10px;margin:0 0 10px;overflow-wrap:anywhere}
+.extinguisher-popup .popup-info-block>strong{display:block;font-size:13px;line-height:1.5;color:#486078}
+.extinguisher-popup .popup-info-block p{margin:5px 0 0;font-size:15px;line-height:1.6;white-space:pre-line}
+.extinguisher-popup .tone-blue{background:#edf4fd;border-color:#dce8f7}
+.extinguisher-popup .tone-mint{background:#edf7f2;border-color:#dcece3}
+.extinguisher-popup .tone-cream{background:#fff8e9;border-color:#f0e7cf}
+.extinguisher-popup .tone-lavender{background:#f3f0fa;border-color:#e6e0f2}
+.extinguisher-popup .tone-rose{background:#fcf0f2;border-color:#f0dfe4}
+.extinguisher-popup .popup-history{margin:0 0 12px;border:1px solid #dce3ef;border-radius:10px;background:#f3f5fb}
+.extinguisher-popup .popup-history>summary{padding:12px 10px;min-height:44px;box-sizing:border-box;cursor:pointer;font-size:14px;font-weight:700;line-height:1.5}
+.extinguisher-popup .popup-history-body{padding:0 10px 2px}
+.extinguisher-popup .popup-history-list>strong{display:block;margin:14px 0 8px;font-size:14px}
+.extinguisher-popup .popup-actions{display:grid;gap:10px;margin:0 0 12px}
+.extinguisher-popup .popup-actions .button{margin:0;width:100%;min-height:52px;padding:12px;font-size:17px;line-height:1.4;box-sizing:border-box}
+.extinguisher-popup .popup-map-link{display:inline-block;padding:4px 0;font-size:13px}
+.extinguisher-popup summary:focus-visible,.extinguisher-popup .button:focus-visible,.extinguisher-popup a:focus-visible{outline:3px solid #3175b5;outline-offset:2px}
+.extinguisher-popup .photo-stage+.photo-stage{border:0;padding:0}
