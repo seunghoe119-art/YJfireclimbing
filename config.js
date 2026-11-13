@@ -6,6 +6,6 @@ window.APP_CONFIG = Object.freeze({
   subject: "[YJfireclimbing] 현장 사진 및 위치정보 접수",
   // Browser JavaScript key; restrict its allowed domain in Kakao Developers.
   kakaoJavascriptKey: "59616f71f195be28c235f36b1bd0a04a",
-  supabaseUrl: "https://rebjcoazabhkcobjjzkj.supabase.co", // Supabase Project URL
-  supabaseAnonKey: "sb_publishable_56dLyg6nM0RWsDsHy08kPA_cMQHPt1J" // Publishable (anon) key only; never place a service-role key here
+  supabaseUrl: "https://cbvcgzjvapnnewnikcrr.supabase.co", // Supabase Project URL
+  supabaseAnonKey: "sb_publishable_fyRr1KHGRmWQFaG4E39DeQ_VKi72bA0" // Publishable (anon) key only; never place a service-role key here
 });
